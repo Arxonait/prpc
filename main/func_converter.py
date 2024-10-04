@@ -8,28 +8,25 @@ class FuncData(NamedTuple):
     return_type: str = "Any"
 
 
-def convert_func_to_str(func) -> FuncData:
+def convert_func_to_dict(func) -> FuncData:
     name_func = func.__name__
     # Сигнатура функции с аргументами
     func_signature = inspect.signature(func)
     # Список аргументов
     func_args = func_signature.parameters
     # Получаем аннотацию типа возвращаемого значения
-    return_annotation = str(func_signature.return_annotation)
+    return_annotation = func_signature.return_annotation
     func_data = {
         "func_name": name_func,
         "func_args": func_args
     }
 
     if return_annotation is not inspect.Signature.empty:
-        func_data["return_type"] = return_annotation
+        func_data["return_type"] = str(return_annotation)
     return FuncData(**func_data)
 
 
-def dev_test_func(zz: int = 5, b="str") -> list[str]:
-    print(5)
+def create_func_head_from_dict(func_data: FuncData) -> str:
+    args_func = ", ".join(map(str, func_data.func_args.values()))
+    return f"def {func_data.func_name}({args_func}) -> {func_data.return_type}:"
 
-
-if __name__ == "__main__":
-    result = convert_func_to_str(dev_test_func)
-    print(result)

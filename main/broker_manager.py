@@ -26,7 +26,7 @@ class QueueWithFeedback(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __save_task_in_process(self, task_data_raw: str):
+    def _save_task_in_process(self, task: Task):
         raise NotImplementedError
 
     @abstractmethod
@@ -49,16 +49,19 @@ class Broker(ABC):
 
 
 class QueueWithFeedbackRedis(QueueWithFeedback):
-    def __init__(self, config_broker: dict, name_queue: str, expire_task_feedback: datetime.timedelta = datetime.timedelta(hours=12)):
+    def __init__(self, config_broker: dict, name_queue: str,
+                 expire_task_feedback: datetime.timedelta = datetime.timedelta(hours=12),
+                 expire_task_process: datetime.timedelta = datetime.timedelta(hours=12)):
         self.redis_client = redis.Redis(host=config_broker["host"], port=config_broker["port"], db=config_broker["db"])
         self.name_queue = name_queue
         self.expire_task_feedback = expire_task_feedback
+        self.expire_task_process = expire_task_process
 
     def create_queue(self):
         pass
 
     def add_task_in_queue(self, task: Task):
-        self.redis_client.lpush(self.name_queue, task.serialize())
+        self.redis_client.lpush(self.name_queue, task.model_dump_json())
 
     def __get_name_task_feedback(self, task_id: uuid.UUID):
         return f"{self.name_queue}:feedback:{task_id}"
@@ -68,15 +71,15 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
 
     def add_task_in_feedback(self, task: Task):
         self.__delete_task_from_in_process(task)
-        self.redis_client.set(self.__get_name_task_feedback(task.task_id), task.serialize(), self.expire_task_feedback)
+        self.redis_client.set(self.__get_name_task_feedback(task.task_id), task.model_dump_json(), self.expire_task_feedback)
 
     def search_task_in_feedback(self, task_id: uuid.UUID):
-        result = self.redis_client.getdel(self.__get_name_task_feedback(task_id))
+        result = self.redis_client.get(self.__get_name_task_feedback(task_id))
+        self.redis_client.delete(self.__get_name_task_feedback(task_id))
         if result is None:
             return
 
-        task_data = json.loads(result)
-        return Task(**task_data)
+        return Task(**json.loads(result))
 
     def get_next_task_in_queue(self) -> Task | None:
         result = self.redis_client.rpop(self.name_queue)
@@ -86,12 +89,12 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         task_data = json.loads(result)
         task = Task(**task_data)
 
-        self.__save_task_in_process(task)
+        self._save_task_in_process(task)
 
         return task
 
-    def __save_task_in_process(self, task: Task):
-        self.redis_client.hset(self.__get_name_task_in_process(task.task_id), mapping=json.loads(task.serialize()))
+    def _save_task_in_process(self, task: Task):
+        self.redis_client.set(self.__get_name_task_in_process(task.task_id), task.model_dump_json(), self.expire_task_process)
 
     def __delete_task_from_in_process(self, task: Task):
         self.redis_client.delete(self.__get_name_task_in_process(task.task_id))

@@ -46,7 +46,7 @@ class AppServer:
         while True:
             if not self.worker_manager.check_add_new_worker():
                 logging.debug(f"Все воркеры заняты. Макс воркеров {self.worker_manager.max_number_worker} --- Текущие воркеры {self.worker_manager.get_count_current_workers()}")
-                time.sleep(1)
+                time.sleep(1) # todo
                 continue
 
             for end_worker in self.worker_manager.end_workers:
@@ -58,7 +58,7 @@ class AppServer:
             task = self.queue.get_next_task_in_queue()
             if task is None:
                 logging.debug(f"Ожидание новой задачи, свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                time.sleep(1)
+                time.sleep(1) # todo
                 continue
 
             logging.info(f"Получена новая задача {task.json()}")

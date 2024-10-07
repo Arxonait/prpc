@@ -14,7 +14,7 @@ class QueueWithFeedback(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __create_queue(self):
+    def _create_queue(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -59,9 +59,9 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         self.expire_task_feedback = expire_task_feedback
         self.expire_task_process = expire_task_process
 
-        self.__create_queue()
+        self._create_queue()
 
-    def __create_queue(self):
+    def _create_queue(self):
         pass
 
     def add_task_in_queue(self, task: Task):

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 class Task(BaseModel):
     name_func: str
     func_args: list
-    func_kwargs: list
+    func_kwargs: dict
     result: Any = None
 
     task_id: uuid.UUID = uuid.uuid4()

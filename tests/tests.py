@@ -39,7 +39,7 @@ def create_task_in_queue_redis(queue_redis):
 @pytest.fixture(scope="class")
 def queue_redis(config_broker_redis, client_redis):
     client_redis.delete(TEST_NAME_QUEUE)
-    queue = QueueWithFeedbackRedis(config_broker_redis, TEST_NAME_QUEUE)
+    queue = QueueWithFeedbackRedis(config_broker_redis, TEST_NAME_QUEUE, None, None)
     return queue
 
 

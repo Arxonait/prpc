@@ -16,6 +16,7 @@ class AppServer:
                  config_broker: dict,
                  type_worker: Literal["thread"],
                  max_number_worker: int,
+                 timeout_worker: datetime.timedelta | None = None, # todo
 
                  name_queue="task_prpc",
                  expire_task_feedback=datetime.timedelta(hours=12),
@@ -23,7 +24,7 @@ class AppServer:
 
         self._func_data: list[FuncData] = []
 
-        self.worker_manager = WorkerManager(type_worker, max_number_worker)
+        self.worker_manager = WorkerManager(type_worker, max_number_worker, timeout_worker)
         self.queue: QueueWithFeedback = QueueWithFeedbackFactory.get_queue(type_broker,
                                                                            config_broker,
                                                                            name_queue,

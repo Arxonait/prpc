@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 import redis
 
-from main.task import Task
+from main.task import Task, TaskDone
 
 
 class QueueWithFeedback(ABC):
@@ -39,11 +39,7 @@ class QueueWithFeedback(ABC):
 
 
 # class Broker(ABC):
-#     # @abstractmethod
-#     # def listen_task_in_topic(self, name_topic: str):
-#     #     raise NotImplementedError
-#
-#     @abstractmethod
+#     @abstractmethod # todo
 #     def insert_task_in_topic(self, task_data):
 #         raise NotImplementedError
 
@@ -51,8 +47,8 @@ class QueueWithFeedback(ABC):
 class QueueWithFeedbackRedis(QueueWithFeedback):
     def __init__(self, config_broker: dict,
                  name_queue: str,
-                 expire_task_feedback: datetime.timedelta = datetime.timedelta(hours=12),
-                 expire_task_process: datetime.timedelta = datetime.timedelta(hours=12)):
+                 expire_task_feedback: datetime.timedelta,
+                 expire_task_process: datetime.timedelta):
 
         self.redis_client = redis.Redis(host=config_broker["host"], port=config_broker["port"], db=config_broker["db"])
         self.name_queue = name_queue
@@ -73,7 +69,7 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
     def __get_name_task_in_process(self, task_id):
         return f"{self.name_queue}:in_process:{task_id}"
 
-    def add_task_in_feedback(self, task: Task):
+    def add_task_in_feedback(self, task: TaskDone):
         self.__delete_task_from_in_process(task)
         self.redis_client.set(self.__get_name_task_feedback(task.task_id), task.model_dump_json(), self.expire_task_feedback)
 
@@ -83,7 +79,7 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         if result is None:
             return
 
-        return Task(**json.loads(result))
+        return TaskDone(**json.loads(result))
 
     def get_next_task_in_queue(self) -> Task | None:
         result = self.redis_client.rpop(self.name_queue)
@@ -94,7 +90,6 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         task = Task(**task_data)
 
         self._save_task_in_process(task)
-
         return task
 
     def _save_task_in_process(self, task: Task):
@@ -110,10 +105,16 @@ class QueueWithFeedbackFactory:
     }
 
     @classmethod
-    def get_queue(cls, type_broker: str, config_broker, name_queue: str):
+    def get_queue(cls,
+                  type_broker: str,
+                  config_broker,
+                  name_queue: str,
+                  expire_task_feedback=datetime.timedelta(hours=12),
+                  expire_task_process=datetime.timedelta(hours=12)):
+
         queue_class = cls.queue_with_feedback.get(type_broker)
 
         if queue_class is None:
             raise Exception(f"only this broker: {cls.queue_with_feedback.keys()}")
 
-        return queue_class(config_broker, name_queue)
+        return queue_class(config_broker, name_queue, expire_task_feedback, expire_task_process)

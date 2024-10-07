@@ -14,7 +14,7 @@ class QueueWithFeedback(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def create_queue(self):
+    def __create_queue(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -38,26 +38,30 @@ class QueueWithFeedback(ABC):
         raise NotImplementedError
 
 
-class Broker(ABC):
-    # @abstractmethod
-    # def listen_task_in_topic(self, name_topic: str):
-    #     raise NotImplementedError
-
-    @abstractmethod
-    def insert_task_in_topic(self, task_data):
-        raise NotImplementedError
+# class Broker(ABC):
+#     # @abstractmethod
+#     # def listen_task_in_topic(self, name_topic: str):
+#     #     raise NotImplementedError
+#
+#     @abstractmethod
+#     def insert_task_in_topic(self, task_data):
+#         raise NotImplementedError
 
 
 class QueueWithFeedbackRedis(QueueWithFeedback):
-    def __init__(self, config_broker: dict, name_queue: str,
+    def __init__(self, config_broker: dict,
+                 name_queue: str,
                  expire_task_feedback: datetime.timedelta = datetime.timedelta(hours=12),
                  expire_task_process: datetime.timedelta = datetime.timedelta(hours=12)):
+
         self.redis_client = redis.Redis(host=config_broker["host"], port=config_broker["port"], db=config_broker["db"])
         self.name_queue = name_queue
         self.expire_task_feedback = expire_task_feedback
         self.expire_task_process = expire_task_process
 
-    def create_queue(self):
+        self.__create_queue()
+
+    def __create_queue(self):
         pass
 
     def add_task_in_queue(self, task: Task):
@@ -106,7 +110,7 @@ class QueueWithFeedbackFactory:
     }
 
     @classmethod
-    def get_queue(cls, type_broker: str, config_broker, name_queue: str = "queue_task"):
+    def get_queue(cls, type_broker: str, config_broker, name_queue: str):
         queue_class = cls.queue_with_feedback.get(type_broker)
 
         if queue_class is None:

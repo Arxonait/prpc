@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import uuid
 from abc import ABC, abstractmethod
 
@@ -54,7 +55,8 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         self.expire_task_process = expire_task_process
 
         self._create_queue()
-        self._restoring_processing_tasks()
+        restore_tasks = self._restoring_processing_tasks()
+        logging.debug(f"Востановлены незавершенные (process) задачи. кол-во задач {len(restore_tasks)}")
 
     def _create_queue(self):
         pass

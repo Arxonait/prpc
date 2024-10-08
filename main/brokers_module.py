@@ -35,7 +35,7 @@ class QueueWithFeedback(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def search_task_in_feedback(self, task_id):
+    def search_task_in_feedback(self, task_id) -> None | TaskDone:
         raise NotImplementedError
 
     @abstractmethod
@@ -127,7 +127,7 @@ class QueueWithFeedbackFactory:
                   config_broker,
                   name_queue: str,
                   expire_task_feedback=datetime.timedelta(hours=12),
-                  expire_task_process=datetime.timedelta(hours=12)):
+                  expire_task_process=datetime.timedelta(hours=12)) -> QueueWithFeedback:
 
         queue_class = cls.queue_with_feedback.get(type_broker)
 

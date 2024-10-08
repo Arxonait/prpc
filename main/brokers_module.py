@@ -37,11 +37,9 @@ class QueueWithFeedback(ABC):
     def search_task_in_feedback(self, task_id):
         raise NotImplementedError
 
-
-# class Broker(ABC):
-#     @abstractmethod # todo
-#     def insert_task_in_topic(self, task_data):
-#         raise NotImplementedError
+    @abstractmethod
+    def _restoring_processing_tasks(self):
+        raise NotImplementedError
 
 
 class QueueWithFeedbackRedis(QueueWithFeedback):
@@ -56,6 +54,7 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         self.expire_task_process = expire_task_process
 
         self._create_queue()
+        self._restoring_processing_tasks()
 
     def _create_queue(self):
         pass
@@ -66,8 +65,11 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
     def __get_name_task_feedback(self, task_id: uuid.UUID):
         return f"{self.name_queue}:feedback:{task_id}"
 
+    def __pattern_name_task_processing(self):
+        return f"{self.name_queue}:in_process:"
+
     def __get_name_task_in_process(self, task_id):
-        return f"{self.name_queue}:in_process:{task_id}"
+        return f"{self.__pattern_name_task_processing()}{task_id}"
 
     def add_task_in_feedback(self, task: TaskDone):
         self.__delete_task_from_in_process(task)
@@ -97,6 +99,19 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
 
     def __delete_task_from_in_process(self, task: Task):
         self.redis_client.delete(self.__get_name_task_in_process(task.task_id))
+
+    def _restoring_processing_tasks(self) -> list[bytes]:
+        keys = self.redis_client.keys(f"{self.__pattern_name_task_processing()}*")
+        results = []
+        for key in keys:
+            result = self.redis_client.get(key)
+            self.redis_client.delete(key)
+            results.append(result)
+
+        if results:
+            self.redis_client.rpush(self.name_queue, *results)
+
+        return results
 
 
 class QueueWithFeedbackFactory:

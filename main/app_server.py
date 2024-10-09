@@ -10,19 +10,38 @@ from main.task import Task, task_to_task_done
 from main.workers_module import WorkerManager
 
 
+def get_function_server() -> list[str]:
+    func_data = AppServer.get_instance().func_data
+    return [func_data_item.create_func() for func_data_item in func_data]
+
+
 class AppServer:
+    __instance = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls.__instance is None:
+            raise Exception("init app server")
+        return cls.__instance
+
     def __init__(self,
                  type_broker: Literal["redis"],
                  config_broker: dict,
                  type_worker: Literal["thread"],
                  max_number_worker: int,
-                 timeout_worker: datetime.timedelta | None = None, # todo
+                 timeout_worker: datetime.timedelta | None = None,  # todo
 
                  name_queue="task_prpc",
                  expire_task_feedback=datetime.timedelta(hours=12),
-                 expire_task_process=datetime.timedelta(hours=12),):
+                 expire_task_process=datetime.timedelta(hours=12), ):
+
+        if self.__instance is not None:
+            raise Exception("singleton cannot be instantiated more then once ")
+
+        AppServer.__instance = self
 
         self._func_data: list[FuncData] = []
+        self.append_func(get_function_server)
 
         self.worker_manager = WorkerManager(type_worker, max_number_worker, timeout_worker)
         self.queue: QueueWithFeedback = QueueWithFeedbackFactory.get_queue(type_broker,
@@ -33,6 +52,10 @@ class AppServer:
 
     def append_func(self, func):
         self._func_data.append(FuncData(func))
+
+    @property
+    def func_data(self):
+        return self._func_data
 
     def __get_func(self, task: Task):
         for func_data in self._func_data:
@@ -45,8 +68,9 @@ class AppServer:
 
         while True:
             if not self.worker_manager.check_add_new_worker():
-                logging.debug(f"Все воркеры заняты. Макс воркеров {self.worker_manager.max_number_worker} --- Текущие воркеры {self.worker_manager.get_count_current_workers()}")
-                time.sleep(1) # todo
+                logging.debug(
+                    f"Все воркеры заняты. Макс воркеров {self.worker_manager.max_number_worker} --- Текущие воркеры {self.worker_manager.get_count_current_workers()}")
+                time.sleep(1)  # todo
                 continue
 
             for end_worker in self.worker_manager.end_workers:
@@ -57,8 +81,9 @@ class AppServer:
 
             task = self.queue.get_next_task_in_queue()
             if task is None:
-                logging.debug(f"Ожидание новой задачи, свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                time.sleep(1) # todo
+                logging.debug(
+                    f"Ожидание новой задачи, свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
+                time.sleep(1)  # todo
                 continue
 
             logging.info(f"Получена новая задача {task.json()}")
@@ -70,7 +95,3 @@ class AppServer:
                 self.queue.add_task_in_feedback(task_to_task_done(task, exception_info=str(e)))
                 continue
             self.worker_manager.add_new_worker(task, func)
-
-
-
-

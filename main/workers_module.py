@@ -1,11 +1,9 @@
-import logging
-import threading
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import timedelta
 from typing import Literal
 
-from main.task import Task, TaskDone
+from task import Task, TaskDone
 
 
 class Worker(ABC):

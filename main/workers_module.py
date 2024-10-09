@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import timedelta
 from typing import Literal
 
-from task import Task, TaskDone
+from main.task import Task, TaskDone
 
 
 class Worker(ABC):

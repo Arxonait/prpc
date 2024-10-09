@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 import redis
 
-from task import Task, TaskDone
+from main.task import Task, TaskDone
 
 
 class QueueWithFeedback(ABC):

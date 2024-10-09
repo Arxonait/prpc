@@ -36,7 +36,7 @@ class AppServer:
 
     def __get_func(self, task: Task):
         for func_data in self._func_data:
-            if task.name_func == func_data.name_func:
+            if task.name_func == func_data.func_name:
                 return func_data.func
         raise NotFoundFunc(task.name_func)
 

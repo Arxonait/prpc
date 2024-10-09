@@ -8,7 +8,7 @@ import redis
 
 from pytest import mark
 
-from main.app import AppServer
+from main.app_server import AppServer
 from main.brokers_module import QueueWithFeedbackRedis
 from main.task import Task
 

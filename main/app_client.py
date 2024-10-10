@@ -76,7 +76,7 @@ class AwaitableTask:
             raise Exception("task in process")
 
         if self._task.exception_info:
-            raise Exception(self._task.exception_info)
+            raise Exception(self._task.exception_info) # todo кастомизировать вызов исключнений (красивый вид)
 
         return self._task.result
 

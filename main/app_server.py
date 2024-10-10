@@ -26,7 +26,7 @@ class AppServer:
 
     def __init__(self,
                  type_broker: Literal["redis"],
-                 config_broker: dict,
+                 config_broker: dict | str,
                  type_worker: Literal["thread"],
                  max_number_worker: int,
                  timeout_worker: datetime.timedelta | None = None,  # todo
@@ -41,17 +41,17 @@ class AppServer:
         AppServer.__instance = self
 
         self._func_data: list[FuncData] = []
-        self.append_func(get_function_server)
+        self.register_func(get_function_server)
 
         self.worker_manager = WorkerManager(type_worker, max_number_worker, timeout_worker)
-        self.queue: QueueWithFeedback = QueueWithFeedbackFactory.get_queue(type_broker,
-                                                                           config_broker,
-                                                                           name_queue,
-                                                                           expire_task_feedback,
-                                                                           expire_task_process)
+        queue_class: QueueWithFeedback = QueueWithFeedbackFactory.get_queue_class(type_broker)
+        self.queue = queue_class(config_broker, name_queue, None, None)
 
-    def append_func(self, func):
+    def register_func(self, func):
         self._func_data.append(FuncData(func))
+
+    def register_funcs(self, *funcs):
+        self._func_data.extend(map(FuncData, funcs))
 
     @property
     def func_data(self):

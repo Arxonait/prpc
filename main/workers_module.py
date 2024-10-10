@@ -1,3 +1,4 @@
+import datetime
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import timedelta
@@ -41,9 +42,11 @@ class ThreadWorker(Worker):
     def __init__(self, task: Task, func, timeout: timedelta | None = None):
         super().__init__(task, func, timeout)
         self.thread: Future | None = None
+        self.__time_start_work: datetime.datetime = None
 
     def start_work(self):
         self.thread = self.executor.submit(self.func, *self.task.func_args, **self.task.func_kwargs)
+        self.__time_start_work = datetime.datetime.now()
 
     def check_end_work(self):
         if isinstance(self.task, TaskDone):
@@ -56,6 +59,12 @@ class ThreadWorker(Worker):
                 self.task = TaskDone(**self.task.model_dump(), exception_info=str(e))
             else:
                 self.task = TaskDone(**self.task.model_dump(), result=result)
+            return True
+
+        if self.timeout and datetime.datetime.now() - self.__time_start_work > self.timeout:
+            self.stop_work()
+            self.task = TaskDone(**self.task.model_dump(),
+                                 exception_info=f"the task was completed by server timeout {self.timeout.total_seconds()} secs.")
             return True
 
         return False
@@ -89,7 +98,8 @@ class WorkerFactory:
 
 
 class WorkerManager:
-    def __init__(self, type_worker: Literal["thread"], max_number_worker: int | None,
+    def __init__(self, type_worker: Literal["thread"],
+                 max_number_worker: int | None,
                  timeout_worker: timedelta | None = None):
 
         self.class_worker = WorkerFactory.get_worker(type_worker)
@@ -119,6 +129,7 @@ class WorkerManager:
     def add_new_worker(self, task: Task, func):
         if not self.check_add_new_worker():
             raise Exception("max workers")
+
         new_worker = self.class_worker(task, func, self.timeout_worker)
         new_worker.start_work()
         self.__current_workers.append(new_worker)

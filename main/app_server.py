@@ -33,7 +33,7 @@ class AppServer:
 
                  name_queue="task_prpc",
                  expire_task_feedback=datetime.timedelta(hours=12),
-                 expire_task_process=datetime.timedelta(hours=12), ):
+                 expire_task_process=datetime.timedelta(hours=12)):
 
         if self.__instance is not None:
             raise Exception("singleton cannot be instantiated more then once ")
@@ -45,7 +45,7 @@ class AppServer:
 
         self.worker_manager = WorkerManager(type_worker, max_number_worker, timeout_worker)
         queue_class: QueueWithFeedback = QueueWithFeedbackFactory.get_queue_class(type_broker)
-        self.queue = queue_class(config_broker, name_queue, None, None)
+        self.queue = queue_class(config_broker, name_queue, expire_task_feedback, expire_task_process)
 
     def register_func(self, func):
         self._func_data.append(FuncData(func))

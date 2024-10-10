@@ -3,4 +3,4 @@ class NotFoundFunc(Exception):
         self.func_name = func_name
 
     def __str__(self):
-        return f"Exception NotFoundFunc: func name '{self.func_name}'"
+        return f"func name '{self.func_name}' not found in server"

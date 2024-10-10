@@ -23,7 +23,7 @@ class ClientBroker:
 
     def __init__(self):
         if self.__instance is not None:
-            raise Exception("singleton cannot be instantiated more then once ")
+            raise Exception("singleton cannot be instantiated more then once")
         ClientBroker.__instance = self
 
         type_broker, config_broker, queue_name = self._parse_env()
@@ -67,8 +67,13 @@ class AwaitableTask:
     def wait_result_task(self, timeout: datetime.timedelta | None = None):
         start_wait = datetime.datetime.now()
         while True:
-            if self.check_status_task() or (timeout is not None and datetime.datetime.now() - start_wait > timeout):
-                break
+            if self.check_status_task():
+                return self.get_result()
+
+            if timeout is not None and datetime.datetime.now() - start_wait > timeout:
+                assert not isinstance(self._task, TaskDone), "при wait timeout должна быть возможность повторного ожидания"
+                raise Exception(f"the task was completed by wait timeout {timeout.total_seconds()} secs.")
+
             time.sleep(1)
 
     def get_result(self):
@@ -76,7 +81,7 @@ class AwaitableTask:
             raise Exception("task in process")
 
         if self._task.exception_info:
-            raise Exception(self._task.exception_info) # todo кастомизировать вызов исключнений (красивый вид)
+            raise Exception(self._task.exception_info)
 
         return self._task.result
 

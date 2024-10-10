@@ -29,7 +29,7 @@ class AppServer:
                  config_broker: dict | str,
                  type_worker: Literal["thread"],
                  max_number_worker: int,
-                 timeout_worker: datetime.timedelta | None = None,  # todo
+                 timeout_worker: datetime.timedelta | None = None,
 
                  name_queue="task_prpc",
                  expire_task_feedback=datetime.timedelta(hours=12),

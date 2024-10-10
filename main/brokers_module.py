@@ -3,6 +3,7 @@ import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from typing import Literal
 
 import redis
 
@@ -11,7 +12,9 @@ from main.task import Task, TaskDone
 
 class QueueWithFeedback(ABC):
     @abstractmethod
-    def __init__(self, config_broker: dict, name_queue: str, expire_task_feedback: datetime.timedelta):
+    def __init__(self, config_broker: dict, name_queue: str,
+                 expire_task_feedback: datetime.timedelta,
+                 expire_task_process: datetime.timedelta):
         raise NotImplementedError
 
     @abstractmethod
@@ -44,12 +47,15 @@ class QueueWithFeedback(ABC):
 
 
 class QueueWithFeedbackRedis(QueueWithFeedback):
-    def __init__(self, config_broker: dict,
+    def __init__(self,
+                 config_broker: dict | str,
                  name_queue: str,
-                 expire_task_feedback: datetime.timedelta,
-                 expire_task_process: datetime.timedelta):
+                 expire_task_feedback: datetime.timedelta = None,
+                 expire_task_process: datetime.timedelta = None):
 
-        self.redis_client = redis.Redis(host=config_broker["host"], port=config_broker["port"], db=config_broker["db"])
+        self.redis_client: redis.Redis = None
+        self.__create_client_redis(config_broker)
+
         self.name_queue = name_queue
         self.expire_task_feedback = expire_task_feedback
         self.expire_task_process = expire_task_process
@@ -57,6 +63,13 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
         self._create_queue()
         restore_tasks = self._restoring_processing_tasks()
         logging.debug(f"Востановлены незавершенные (process) задачи. кол-во задач {len(restore_tasks)}")
+
+    def __create_client_redis(self, config_broker: str | dict):
+        if isinstance(config_broker, str):
+            self.redis_client = redis.from_url(config_broker)
+        else:
+            self.redis_client = redis.Redis(host=config_broker["host"], port=config_broker["port"], db=config_broker["db"])
+
 
     def _create_queue(self):
         pass
@@ -122,16 +135,11 @@ class QueueWithFeedbackFactory:
     }
 
     @classmethod
-    def get_queue(cls,
-                  type_broker: str,
-                  config_broker,
-                  name_queue: str,
-                  expire_task_feedback=datetime.timedelta(hours=12),
-                  expire_task_process=datetime.timedelta(hours=12)) -> QueueWithFeedback:
+    def get_queue_class(cls, type_broker: Literal["redis"]) -> QueueWithFeedback:
 
         queue_class = cls.queue_with_feedback.get(type_broker)
 
         if queue_class is None:
             raise Exception(f"only this broker: {cls.queue_with_feedback.keys()}")
 
-        return queue_class(config_broker, name_queue, expire_task_feedback, expire_task_process)
+        return queue_class

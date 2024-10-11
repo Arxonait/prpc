@@ -8,9 +8,7 @@ from main.brokers_module import QueueWithFeedback, QueueWithFeedbackFactory
 from main.exceptions import NotFoundFunc
 from main.func_converter import FuncData
 from main.task import Task, task_to_task_done
-from main.workers_module import WorkerManager
-
-WORKER_TYPE = Literal["thread", "process", "async"]
+from main.workers_module import WorkerManager, WORKER_TYPE
 
 
 def get_function_server() -> list[str]:

@@ -7,9 +7,11 @@ from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import timedelta
 from functools import partial
-from typing import Literal
+from typing import Literal, Callable
 
 from main.task import Task, TaskDone
+
+WORKER_TYPE = Literal["thread", "process", "async"]
 
 
 class Worker(ABC):
@@ -39,6 +41,11 @@ class Worker(ABC):
 
     @abstractmethod
     def _get_result_of_concurrence_obj(self):
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def check_ability_to_work_with_function(cls, func_data):
         raise NotImplementedError
 
     def check_end_work(self):
@@ -99,6 +106,11 @@ class ThreadWorker(WorkerFuture):
                                  run_in_executor(self.executor,
                                                  partial(self.func, *self.task.func_args, **self.task.func_kwargs)))
 
+    @classmethod
+    def check_ability_to_work_with_function(cls, func_data):
+        if func_data.is_coroutine:
+            raise Exception(f"{func_data.func_name} - thread worker can't work with coroutine")
+
 
 class ProcessWorker(WorkerFuture):
     executor = ProcessPoolExecutor()
@@ -109,6 +121,11 @@ class ProcessWorker(WorkerFuture):
                                  run_in_executor(self.executor,
                                                  partial(self.func, *self.task.func_args, **self.task.func_kwargs)))
 
+    @classmethod
+    def check_ability_to_work_with_function(cls, func_data):
+        if func_data.is_coroutine:
+            raise Exception(f"{func_data.func_name} - process worker can't work with coroutine")
+
 
 class AsyncWorker(WorkerFuture):
 
@@ -118,16 +135,21 @@ class AsyncWorker(WorkerFuture):
         self._concurrence_obj = task
         task.cancelling()
 
+    @classmethod
+    def check_ability_to_work_with_function(cls, func_data):
+        if not func_data.is_coroutine:
+            raise Exception(f"{func_data.func_name} - async worker can work only with coroutine")
+
 
 class WorkerFactory:
-    worker: dict[str, Worker] = {
+    worker: dict[WORKER_TYPE, Worker] = {
         "thread": ThreadWorker,
         "process": ProcessWorker,
-        "async": AsyncWorker
+        "async": AsyncWorker,
     }
 
     @classmethod
-    def get_worker(cls, type_worker: str):
+    def get_worker(cls, type_worker: WORKER_TYPE):
         worker_class = cls.worker.get(type_worker)
 
         if worker_class is None:

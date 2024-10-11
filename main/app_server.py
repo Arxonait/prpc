@@ -8,7 +8,7 @@ from main.brokers_module import QueueWithFeedback, QueueWithFeedbackFactory
 from main.exceptions import NotFoundFunc
 from main.func_converter import FuncData
 from main.task import Task, task_to_task_done
-from main.workers_module import WorkerManager, WORKER_TYPE
+from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
 
 def get_function_server() -> list[str]:
@@ -28,7 +28,7 @@ class AppServer:
     def __init__(self,
                  type_broker: Literal["redis"],
                  config_broker: dict | str,
-                 default_type_worker: WORKER_TYPE,
+                 default_type_worker: WORKER_TYPE_ANNOTATE,
                  max_number_worker: int,
                  timeout_worker: datetime.timedelta | None = None,
 
@@ -42,7 +42,7 @@ class AppServer:
         AppServer.__instance = self
 
         self._func_data: list[FuncData] = []
-        self.register_func(get_function_server, "thread")
+        self.register_func(get_function_server, WorkerType.THREAD.value)
 
         self.default_type_worker = default_type_worker
         self.worker_manager = WorkerManager(max_number_worker, timeout_worker)
@@ -53,11 +53,11 @@ class AppServer:
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
 
-    def register_func(self, func, worker_type: WORKER_TYPE = None):
+    def register_func(self, func, worker_type: WORKER_TYPE_ANNOTATE = None):
         worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
         self._func_data.append(FuncData(func, worker_type))
 
-    def register_funcs(self, *funcs, worker_type: WORKER_TYPE = None):
+    def register_funcs(self, *funcs, worker_type: WORKER_TYPE_ANNOTATE = None):
         worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
         for func in funcs:
             self._func_data.append(FuncData(func, worker_type))

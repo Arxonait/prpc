@@ -1,10 +1,10 @@
 import inspect
 
-from main.workers_module import WorkerFactory, WORKER_TYPE
+from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
 
 
 class FuncData:
-    def __init__(self, func, worker_type: WORKER_TYPE):
+    def __init__(self, func, worker_type: WORKER_TYPE_ANNOTATE):
         self.func = func
         self.worker_type = worker_type
 

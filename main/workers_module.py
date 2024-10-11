@@ -6,12 +6,20 @@ from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import timedelta
+from enum import Enum
 from functools import partial
 from typing import Literal, Callable
 
 from main.task import Task, TaskDone
 
-WORKER_TYPE = Literal["thread", "process", "async"]
+
+class WorkerType(Enum):
+    THREAD = "thread"
+    PROCESS = "process"
+    ASYNC = "async"
+
+
+WORKER_TYPE_ANNOTATE = Literal["thread", "process", "async"]
 
 
 class Worker(ABC):
@@ -142,14 +150,14 @@ class AsyncWorker(WorkerFuture):
 
 
 class WorkerFactory:
-    worker: dict[WORKER_TYPE, Worker] = {
+    worker: dict[WORKER_TYPE_ANNOTATE, Worker] = {
         "thread": ThreadWorker,
         "process": ProcessWorker,
         "async": AsyncWorker,
     }
 
     @classmethod
-    def get_worker(cls, type_worker: WORKER_TYPE):
+    def get_worker(cls, type_worker: WORKER_TYPE_ANNOTATE):
         worker_class = cls.worker.get(type_worker)
 
         if worker_class is None:

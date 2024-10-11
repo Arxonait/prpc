@@ -1,8 +1,9 @@
 import asyncio
+import concurrent.futures
 import datetime
 from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import timedelta
 from functools import partial
 from typing import Literal
@@ -15,11 +16,12 @@ class Worker(ABC):
     def __init__(self, task: Task, func: AbstractEventLoop, timeout: timedelta = None):
         self.task = task
         self.timeout = timeout
-
         self.func = func
 
+        self._time_start_work: datetime.datetime | None = None
+
     @abstractmethod
-    def future(self):
+    def get_future(self) -> asyncio.Future | asyncio.Task:
         raise NotImplementedError
 
     @abstractmethod
@@ -31,49 +33,27 @@ class Worker(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def check_end_work(self):
+    def _check_done_of_concurrence_obj(self):
         raise NotImplementedError
 
     @abstractmethod
-    def get_result(self):
+    def _get_result_of_concurrence_obj(self):
         raise NotImplementedError
-
-    @abstractmethod
-    def get_task(self):
-        raise NotImplementedError
-
-
-class ThreadWorker(Worker):
-    executor = ThreadPoolExecutor()
-
-    def __init__(self, task: Task, func, timeout: timedelta | None = None):
-        super().__init__(task, func, timeout)
-        self._future: asyncio.Future | None = None
-        self.__time_start_work: datetime.datetime = None
-
-    @property
-    def future(self):
-        return self._future
-
-    def start_work(self):
-        self.__time_start_work = datetime.datetime.now()
-        self._future = (asyncio.get_running_loop().
-                        run_in_executor(self.executor, partial(self.func, *self.task.func_args, **self.task.func_kwargs)))
 
     def check_end_work(self):
         if isinstance(self.task, TaskDone):
             return True
 
-        if self._future.done():
+        if self._check_done_of_concurrence_obj():
             try:
-                result = self._future.result()
+                result = self._get_result_of_concurrence_obj()
             except Exception as e:
                 self.task = TaskDone(**self.task.model_dump(), exception_info=str(e))
             else:
                 self.task = TaskDone(**self.task.model_dump(), result=result)
             return True
 
-        if self.timeout and datetime.datetime.now() - self.__time_start_work > self.timeout:
+        if self.timeout and datetime.datetime.now() - self._time_start_work > self.timeout:
             self.stop_work()
             self.task = TaskDone(**self.task.model_dump(),
                                  exception_info=f"the task was completed by server timeout {self.timeout.total_seconds()} secs.")
@@ -90,13 +70,59 @@ class ThreadWorker(Worker):
             return self.task.result
         return None
 
+
+class WorkerFuture(Worker, ABC):
+    def __init__(self, task, func, timeout):
+        super().__init__(task, func, timeout)
+        self._concurrence_obj: asyncio.Future | None = None
+
+    def get_future(self):
+        return self._concurrence_obj
+
+    def _get_result_of_concurrence_obj(self):
+        return self._concurrence_obj.result()
+
+    def _check_done_of_concurrence_obj(self):
+        return self._concurrence_obj.done()
+
     def stop_work(self):
-        self._future.cancel()
+        self._concurrence_obj.cancel()
+
+
+class ThreadWorker(WorkerFuture):
+    executor = ThreadPoolExecutor()
+
+    def start_work(self):
+        self._time_start_work = datetime.datetime.now()
+        self._concurrence_obj = (asyncio.get_running_loop().
+                                 run_in_executor(self.executor,
+                                                 partial(self.func, *self.task.func_args, **self.task.func_kwargs)))
+
+
+class ProcessWorker(WorkerFuture):
+    executor = ProcessPoolExecutor()
+
+    def start_work(self):
+        self._time_start_work = datetime.datetime.now()
+        self._concurrence_obj = (asyncio.get_running_loop().
+                                 run_in_executor(self.executor,
+                                                 partial(self.func, *self.task.func_args, **self.task.func_kwargs)))
+
+
+class AsyncWorker(WorkerFuture):
+
+    def start_work(self):
+        self._time_start_work = datetime.datetime.now()
+        task = asyncio.create_task(self.func(*self.task.func_args, **self.task.func_kwargs))
+        self._concurrence_obj = task
+        task.cancelling()
 
 
 class WorkerFactory:
     worker: dict[str, Worker] = {
-        "thread": ThreadWorker
+        "thread": ThreadWorker,
+        "process": ProcessWorker,
+        "async": AsyncWorker
     }
 
     @classmethod
@@ -110,7 +136,7 @@ class WorkerFactory:
 
 
 class WorkerManager:
-    def __init__(self, type_worker: Literal["thread"],
+    def __init__(self, type_worker: Literal["thread", "process", "async"],
                  max_number_worker: int | None,
                  timeout_worker: timedelta | None = None):
 

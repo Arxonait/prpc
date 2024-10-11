@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+from multiprocessing import freeze_support
 from typing import Literal
 
 from main.brokers_module import QueueWithFeedback, QueueWithFeedbackFactory
@@ -27,7 +28,7 @@ class AppServer:
     def __init__(self,
                  type_broker: Literal["redis"],
                  config_broker: dict | str,
-                 type_worker: Literal["thread"],
+                 type_worker: Literal["thread", "process", "async"],
                  max_number_worker: int,
                  timeout_worker: datetime.timedelta | None = None,
 
@@ -64,6 +65,7 @@ class AppServer:
         raise NotFoundFunc(task.name_func)
 
     async def __start(self):
+        freeze_support()
         logging.info("Старт сервера")
 
         while True:

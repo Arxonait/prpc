@@ -1,19 +1,26 @@
+import asyncio
 import datetime
 from abc import ABC, abstractmethod
+from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import timedelta
+from functools import partial
 from typing import Literal
 
 from main.task import Task, TaskDone
 
 
 class Worker(ABC):
-    @abstractmethod
-    def __init__(self, task: Task, func, timeout: timedelta):
+
+    def __init__(self, task: Task, func: AbstractEventLoop, timeout: timedelta = None):
         self.task = task
         self.timeout = timeout
 
         self.func = func
+
+    @abstractmethod
+    def future(self):
+        raise NotImplementedError
 
     @abstractmethod
     def start_work(self):
@@ -41,20 +48,25 @@ class ThreadWorker(Worker):
 
     def __init__(self, task: Task, func, timeout: timedelta | None = None):
         super().__init__(task, func, timeout)
-        self.thread: Future | None = None
+        self._future: asyncio.Future | None = None
         self.__time_start_work: datetime.datetime = None
 
+    @property
+    def future(self):
+        return self._future
+
     def start_work(self):
-        self.thread = self.executor.submit(self.func, *self.task.func_args, **self.task.func_kwargs)
         self.__time_start_work = datetime.datetime.now()
+        self._future = (asyncio.get_running_loop().
+                        run_in_executor(self.executor, partial(self.func, *self.task.func_args, **self.task.func_kwargs)))
 
     def check_end_work(self):
         if isinstance(self.task, TaskDone):
             return True
 
-        if self.thread.done():
+        if self._future.done():
             try:
-                result = self.thread.result()
+                result = self._future.result()
             except Exception as e:
                 self.task = TaskDone(**self.task.model_dump(), exception_info=str(e))
             else:
@@ -79,7 +91,7 @@ class ThreadWorker(Worker):
         return None
 
     def stop_work(self):
-        self.thread.cancel()
+        self._future.cancel()
 
 
 class WorkerFactory:
@@ -109,16 +121,21 @@ class WorkerManager:
         self.__current_workers: list[Worker] = []
         self.__end_workers: list[Worker] = []
 
-    def __check_end_workers(self):
-        for current_worker in self.__current_workers:
-            if current_worker.check_end_work():
-                self.__end_workers.append(current_worker)
+    def __check_workers(self):
+        copy_current_workers = self.__current_workers.copy()
 
-        for end_workers in self.__end_workers:
-            self.__current_workers.remove(end_workers)
+        self.__current_workers = []
+        for item in copy_current_workers:
+            if item.check_end_work():
+                self.__end_workers.append(item)
+            else:
+                self.__current_workers.append(item)
 
-    def check_add_new_worker(self):
-        self.__check_end_workers()
+    def update_data_about_workers(self):
+        self.__check_workers()
+
+    def check_possibility_add_new_worker(self):
+        self.__check_workers()
         if self.max_number_worker is not None and self.get_count_current_workers() >= self.max_number_worker:
             return False
         return True
@@ -126,8 +143,11 @@ class WorkerManager:
     def get_count_current_workers(self):
         return len(self.__current_workers)
 
+    def get_future_current_workers(self) -> list[asyncio.Future]:
+        return [current_worker.future for current_worker in self.__current_workers]
+
     def add_new_worker(self, task: Task, func):
-        if not self.check_add_new_worker():
+        if not self.check_possibility_add_new_worker():
             raise Exception("max workers")
 
         new_worker = self.class_worker(task, func, self.timeout_worker)

@@ -1,6 +1,6 @@
+import asyncio
 import datetime
 import logging
-import time
 from typing import Literal
 
 from main.brokers_module import QueueWithFeedback, QueueWithFeedbackFactory
@@ -63,27 +63,28 @@ class AppServer:
                 return func_data.func
         raise NotFoundFunc(task.name_func)
 
-    def start(self):
+    async def __start(self):
         logging.info("Старт сервера")
 
         while True:
-            if not self.worker_manager.check_add_new_worker():
+            if not self.worker_manager.check_possibility_add_new_worker():
                 logging.debug(
                     f"Все воркеры заняты. Макс воркеров {self.worker_manager.max_number_worker} --- Текущие воркеры {self.worker_manager.get_count_current_workers()}")
-                time.sleep(1)  # todo
-                continue
+                await asyncio.wait(self.worker_manager.get_future_current_workers(), return_when=asyncio.FIRST_COMPLETED)
+                self.worker_manager.update_data_about_workers()
 
             for end_worker in self.worker_manager.end_workers:
                 task_done = end_worker.get_task()
                 logging.info(f"Задача {task_done.json()} выполнилась")
                 self.queue.add_task_in_feedback(task_done)
-            self.worker_manager.clear_end_workers()
+            else:
+                self.worker_manager.clear_end_workers()
 
             task = self.queue.get_next_task_in_queue()
             if task is None:
                 logging.debug(
                     f"Ожидание новой задачи, свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                time.sleep(1)  # todo
+                await asyncio.sleep(1)  # todo
                 continue
 
             logging.info(f"Получена новая задача {task.json()}")
@@ -95,3 +96,6 @@ class AppServer:
                 self.queue.add_task_in_feedback(task_to_task_done(task, exception_info=str(e)))
                 continue
             self.worker_manager.add_new_worker(task, func)
+
+    def start(self):
+        asyncio.run(self.__start())

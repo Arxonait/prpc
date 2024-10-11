@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import datetime
+import logging
 from abc import ABC, abstractmethod
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -136,11 +137,7 @@ class WorkerFactory:
 
 
 class WorkerManager:
-    def __init__(self, type_worker: Literal["thread", "process", "async"],
-                 max_number_worker: int | None,
-                 timeout_worker: timedelta | None = None):
-
-        self.class_worker = WorkerFactory.get_worker(type_worker)
+    def __init__(self, max_number_worker: int | None, timeout_worker: timedelta | None = None):
         self.max_number_worker = max_number_worker
         self.timeout_worker = timeout_worker
 
@@ -170,15 +167,17 @@ class WorkerManager:
         return len(self.__current_workers)
 
     def get_future_current_workers(self) -> list[asyncio.Future]:
-        return [current_worker.future for current_worker in self.__current_workers]
+        return [current_worker.get_future() for current_worker in self.__current_workers]
 
-    def add_new_worker(self, task: Task, func):
+    def add_new_worker(self, task: Task, func, type_worker: str):
         if not self.check_possibility_add_new_worker():
             raise Exception("max workers")
 
-        new_worker = self.class_worker(task, func, self.timeout_worker)
+        class_worker = WorkerFactory.get_worker(type_worker)
+        new_worker = class_worker(task, func, self.timeout_worker)
         new_worker.start_work()
         self.__current_workers.append(new_worker)
+        logging.debug(f"Задача task_id = {task.task_id} начала исполнятся воркером {type_worker}")
 
     @property
     def end_workers(self):

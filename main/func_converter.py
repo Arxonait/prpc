@@ -2,8 +2,9 @@ import inspect
 
 
 class FuncData:
-    def __init__(self, func):
+    def __init__(self, func, worker_type: str):
         self.func = func
+        self.worker_type = worker_type
 
         self.func_args = dict[str, inspect.Parameter]
         self.func_kwargs = dict[str, inspect.Parameter]

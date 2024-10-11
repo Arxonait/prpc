@@ -48,7 +48,8 @@ class AppServer:
         self.worker_manager = WorkerManager(max_number_worker, timeout_worker)
 
         queue_class: QueueWithFeedback = QueueWithFeedbackFactory.get_queue_class(type_broker)
-        self.queue = queue_class(config_broker, name_queue, expire_task_feedback, expire_task_process)
+        self.queue: QueueWithFeedback = queue_class(config_broker, name_queue, expire_task_feedback,
+                                                    expire_task_process)
 
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
@@ -72,10 +73,7 @@ class AppServer:
                 return func_data
         raise NotFoundFunc(task.name_func)
 
-    async def __start(self):
-        freeze_support()
-        logging.info("Старт сервера")
-
+    async def _task_get_new_task_from_queue(self):
         while True:
             if not self.worker_manager.check_possibility_add_new_worker():
                 logging.debug(
@@ -84,29 +82,45 @@ class AppServer:
                                    return_when=asyncio.FIRST_COMPLETED)
                 self.worker_manager.update_data_about_workers()
 
-            for end_worker in self.worker_manager.end_workers:
-                task_done = end_worker.get_task()
-                logging.info(f"Задача {task_done.json()} выполнилась")
-                self.queue.add_task_in_feedback(task_done)
-            else:
-                self.worker_manager.clear_end_workers()
-
-            task = self.queue.get_next_task_in_queue()
-            if task is None:
-                logging.debug(
-                    f"Ожидание новой задачи, свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                await asyncio.sleep(1)  # todo
-                continue
-
+            logging.debug(f"Ожидание новой задачи")
+            logging.debug(f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
+            task = await self.queue.async_get_next_task_in_queue()
             logging.info(f"Получена новая задача {task.json()}")
 
             try:
                 func_data = self.__get_func_data(task)
             except NotFoundFunc as e:
                 logging.warning(f"Задача {task.json()} не выполнилась по причине {str(e)}")
+                logging.debug(
+                    f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
                 self.queue.add_task_in_feedback(task_to_task_done(task, exception_info=str(e)))
-                continue
-            self.worker_manager.add_new_worker(task, func_data.func, func_data.worker_type)
+            else:
+                self.worker_manager.add_new_worker(task, func_data.func, func_data.worker_type)
+
+    async def _task_update_data_about_worker(self):
+        while True:
+            self.worker_manager.update_data_about_workers()
+
+            for end_worker in self.worker_manager.end_workers:
+                task_done = end_worker.get_task()
+                logging.info(f"Задача {task_done.json()} выполнилась")
+                logging.debug(
+                    f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
+                self.queue.add_task_in_feedback(task_done)
+            else:
+                self.worker_manager.clear_end_workers()
+
+            await asyncio.sleep(1)
+
+    async def __start(self):
+        freeze_support()
+        logging.info("Старт сервера")
+
+        task_queue = asyncio.create_task(self._task_get_new_task_from_queue())
+        task_update = asyncio.create_task(self._task_update_data_about_worker())
+
+        await asyncio.wait([task_queue, task_update])
 
     def start(self):
         asyncio.run(self.__start())
+

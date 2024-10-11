@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import logging
@@ -43,6 +44,10 @@ class QueueWithFeedback(ABC):
 
     @abstractmethod
     def _restoring_processing_tasks(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    async def async_get_next_task_in_queue(self) -> Task:
         raise NotImplementedError
 
 
@@ -108,6 +113,13 @@ class QueueWithFeedbackRedis(QueueWithFeedback):
 
         self._save_task_in_process(task)
         return task
+
+    async def async_get_next_task_in_queue(self) -> Task:
+        while True:
+            result = self.get_next_task_in_queue()
+            if result:
+                return result
+            await asyncio.sleep(1)
 
     def _save_task_in_process(self, task: Task):
         self.redis_client.set(self.__get_name_task_in_process(task.task_id), task.model_dump_json(), self.expire_task_process)

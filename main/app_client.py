@@ -53,7 +53,7 @@ class AwaitableTask:
     def _start_task(self):
         self.__client_broker.queue.add_task_in_queue(self._task)
 
-    def check_status_task(self):
+    def check_done_task(self):
         if isinstance(self._task, TaskDone):
             return True
 
@@ -67,7 +67,7 @@ class AwaitableTask:
     def wait_result_task(self, timeout: datetime.timedelta | None = None):
         start_wait = datetime.datetime.now()
         while True:
-            if self.check_status_task():
+            if self.check_done_task():
                 return self.get_result()
 
             if timeout is not None and datetime.datetime.now() - start_wait > timeout:

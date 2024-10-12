@@ -50,8 +50,9 @@ class AbstractQueueClient(AbstractQueue, ABC):
 
 
 class AbstractQueueServer(AbstractQueue, ABC):
-    def __init__(self, confing_broker: dict | str, queue_name: str, expire_task_feedback: datetime.timedelta,
-                 expire_task_process):
+    def __init__(self, confing_broker: dict | str, queue_name: str,
+                 expire_task_feedback: datetime.timedelta = datetime.timedelta(hours=2),
+                 expire_task_process: datetime.timedelta = datetime.timedelta(hours=2)):
         super().__init__(confing_broker, queue_name)
         self._expire_task_feedback = expire_task_feedback
         self._expire_task_process = expire_task_process

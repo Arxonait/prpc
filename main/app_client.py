@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import logging
 import time
@@ -26,7 +27,7 @@ class ClientBroker:
             raise Exception("singleton cannot be instantiated more then once")
         ClientBroker.__instance = self
 
-        type_broker, config_broker, queue_name = self._parse_env()
+        type_broker, config_broker, queue_name, connect_async = self._parse_env()
         queue_class: QueueWithFeedback = QueueWithFeedbackFactory().get_queue_class(type_broker)
         self.queue = queue_class(config_broker, queue_name, None, None)
 
@@ -34,13 +35,14 @@ class ClientBroker:
         load_dotenv()
         type_broker = os.getenv("PRPC_TYPE_BROKER")
         config_broker = os.getenv("PRPC_URL_BROKER")
+        connect_async = os.getenv("PRPC_CONNECT_ASYNC", False)
         queue_name = os.getenv("PRPC_QUEUE_NAME")
 
-        if not (type_broker and config_broker and queue_name):
-            logging.error(f"{type_broker=}, {config_broker=}, {queue_name=}")
+        if not (type_broker and config_broker and queue_name and connect_async):
+            logging.error(f"{type_broker=}, {config_broker=}, {queue_name=}, {connect_async=}")
             raise Exception("env PRPC_TYPE_BROKER, PRPC_URL_BROKER, PRPC_QUEUE_NAME must be installed")
 
-        return type_broker, config_broker, queue_name
+        return type_broker, config_broker, queue_name, connect_async
 
 
 class AwaitableTask:
@@ -57,24 +59,33 @@ class AwaitableTask:
         if isinstance(self._task, TaskDone):
             return True
 
-        task_done = self.__client_broker.queue.search_task_in_feedback(task_id=self._task.task_id)
+        task_done = self.__client_broker.queue.search_task_in_feedback(task_id=self.get_task_id())
         if task_done is None:
             return False
 
         self._task = task_done
         return True
 
-    def wait_result_task(self, timeout: datetime.timedelta | None = None):
+    def _check_timeout(self, start_wait, timeout):
+        if timeout is not None and datetime.datetime.now() - start_wait > timeout:
+            assert not isinstance(self._task, TaskDone), "при wait timeout должна быть возможность повторного ожидания"
+            raise Exception(f"the task was completed by wait timeout {timeout.total_seconds()} secs.")
+
+    def sync_wait_result_task(self, timeout: datetime.timedelta | None = None):
         start_wait = datetime.datetime.now()
         while True:
             if self.check_done_task():
                 return self.get_result()
-
-            if timeout is not None and datetime.datetime.now() - start_wait > timeout:
-                assert not isinstance(self._task, TaskDone), "при wait timeout должна быть возможность повторного ожидания"
-                raise Exception(f"the task was completed by wait timeout {timeout.total_seconds()} secs.")
-
+            self._check_timeout(start_wait, timeout)
             time.sleep(1)
+
+    async def async_wait_result_task(self, timeout: datetime.timedelta | None = None):
+        start_wait = datetime.datetime.now()
+        while True:
+            if self.check_done_task():
+                return self.get_result()
+            self._check_timeout(start_wait, timeout)
+            await asyncio.sleep(1)
 
     def get_result(self):
         if not isinstance(self._task, TaskDone):

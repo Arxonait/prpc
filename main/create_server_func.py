@@ -13,7 +13,7 @@ head_lines = list(map(lambda item: item + " \n", head_lines))
 lines = [*head_lines, "\n\n"]
 
 awaitable = get_function_server()
-awaitable.wait_result_task(datetime.timedelta(seconds=30))
+awaitable.sync_wait_result_task(datetime.timedelta(seconds=30))
 result: list[str] = awaitable.get_result()
 
 body_lines = result

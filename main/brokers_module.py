@@ -85,8 +85,6 @@ class AbstractQueueRedis(AbstractQueue, ABC):
 
 
 class ClientQueueRedisSync(AbstractQueueClient, AbstractQueueRedis):
-    def __init__(self, confing_broker: dict, queue_name: str):
-        super().__init__(confing_broker, queue_name)
 
     def init(self):
         self._create_client()
@@ -104,6 +102,31 @@ class ClientQueueRedisSync(AbstractQueueClient, AbstractQueueRedis):
     def search_task_in_feedback(self, task_id: uuid.UUID):
         result = self.client.get(self._pattern_queue_feedback_task_id(task_id))
         self.client.delete(self._pattern_queue_feedback_task_id(task_id))
+        if result is None:
+            return
+
+        return TaskDone(**json.loads(result))
+
+
+class ClientQueueRedisAsync(AbstractQueueClient, AbstractQueueRedis):
+
+    def init(self):
+        self._create_client()
+
+    async def _create_client(self):
+        if isinstance(self.config_broker, str):
+            self.client = await redis.asyncio.from_url(self.config_broker)
+        else:
+            self.client = await redis.asyncio.Redis(host=self.config_broker["host"],
+                                                    port=self.config_broker["port"],
+                                                    db=self.config_broker["db"])
+
+    async def add_task_in_queue(self, task: Task):
+        await self.client.lpush(self._pattern_queue(), task.model_dump_json())
+
+    async def search_task_in_feedback(self, task_id: uuid.UUID):
+        result = await self.client.get(self._pattern_queue_feedback_task_id(task_id))
+        await self.client.delete(self._pattern_queue_feedback_task_id(task_id))
         if result is None:
             return
 
@@ -179,7 +202,7 @@ class QueueFactory:
     }
 
     async_client_queue: dict[str, AbstractQueueClient] = {
-
+        'redis': ClientQueueRedisAsync,
     }
 
     @classmethod

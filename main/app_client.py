@@ -5,7 +5,7 @@ import time
 import os
 from dotenv import load_dotenv
 
-from main.brokers_module import QueueWithFeedbackFactory, QueueWithFeedback
+from main.brokers_module import QueueFactory, AbstractQueueClient
 from main.task import Task, TaskDone
 
 
@@ -28,8 +28,13 @@ class ClientBroker:
         ClientBroker.__instance = self
 
         type_broker, config_broker, queue_name, connect_async = self._parse_env()
-        queue_class: QueueWithFeedback = QueueWithFeedbackFactory().get_queue_class(type_broker)
-        self.queue = queue_class(config_broker, queue_name, None, None)
+        if connect_async:
+            queue_class = QueueFactory().get_queue_class_async_client(type_broker)
+            self.queue: AbstractQueueClient = queue_class(config_broker, queue_name)
+        else:
+            queue_class = QueueFactory().get_queue_class_sync_client(type_broker)
+            self.queue: AbstractQueueClient = queue_class(config_broker, queue_name)
+        self.queue.init()
 
     def _parse_env(self):
         load_dotenv()
@@ -38,7 +43,7 @@ class ClientBroker:
         connect_async = os.getenv("PRPC_CONNECT_ASYNC", False)
         queue_name = os.getenv("PRPC_QUEUE_NAME")
 
-        if not (type_broker and config_broker and queue_name and connect_async):
+        if not (type_broker and config_broker and queue_name):
             logging.error(f"{type_broker=}, {config_broker=}, {queue_name=}, {connect_async=}")
             raise Exception("env PRPC_TYPE_BROKER, PRPC_URL_BROKER, PRPC_QUEUE_NAME must be installed")
 

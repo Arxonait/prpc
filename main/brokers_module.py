@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import logging
+import time
 import uuid
 from abc import ABC, abstractmethod
 from typing import Literal
@@ -11,147 +12,199 @@ import redis
 from main.task import Task, TaskDone
 
 
-class QueueWithFeedback(ABC):
+class AbstractQueue(ABC):
+    def __init__(self, confing_broker: dict | str, queue_name: str):
+        self.config_broker = confing_broker
+        self._queue_name = queue_name
+        self.client = None
+
+    def init(self):
+        self._create_client()
+
     @abstractmethod
-    def __init__(self, config_broker: dict, name_queue: str,
-                 expire_task_feedback: datetime.timedelta,
-                 expire_task_process: datetime.timedelta):
+    async def _create_client(self):
         raise NotImplementedError
 
     @abstractmethod
-    def _create_queue(self):
+    def _pattern_queue_feedback(self):
         raise NotImplementedError
+
+    @abstractmethod
+    def _pattern_queue(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _pattern_queue_feedback_task_id(self, task_id):
+        raise NotImplementedError
+
+
+class AbstractQueueClient(AbstractQueue, ABC):
 
     @abstractmethod
     def add_task_in_queue(self, task: Task):
         raise NotImplementedError
 
     @abstractmethod
-    def get_next_task_in_queue(self) -> Task | None:
+    def search_task_in_feedback(self, task_id: uuid.UUID) -> TaskDone:
+        raise NotImplementedError
+
+
+class AbstractQueueServer(AbstractQueue, ABC):
+    def __init__(self, confing_broker: dict | str, queue_name: str, expire_task_feedback: datetime.timedelta,
+                 expire_task_process):
+        super().__init__(confing_broker, queue_name)
+        self._expire_task_feedback = expire_task_feedback
+        self._expire_task_process = expire_task_process
+
+    @abstractmethod
+    async def _create_queues(self):
         raise NotImplementedError
 
     @abstractmethod
-    def _save_task_in_process(self, task: Task):
+    async def _restoring_processing_tasks(self) -> list[bytes]:
         raise NotImplementedError
 
     @abstractmethod
-    def add_task_in_feedback(self, task: Task):
+    async def get_next_task_from_queue(self):
         raise NotImplementedError
 
     @abstractmethod
-    def search_task_in_feedback(self, task_id) -> None | TaskDone:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _restoring_processing_tasks(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    async def async_get_next_task_in_queue(self) -> Task:
+    async def add_task_in_feedback_queue(self, task: TaskDone):
         raise NotImplementedError
 
 
-class QueueWithFeedbackRedis(QueueWithFeedback):
-    def __init__(self,
-                 config_broker: dict | str,
-                 name_queue: str,
-                 expire_task_feedback: datetime.timedelta = None,
-                 expire_task_process: datetime.timedelta = None):
+class AbstractQueueRedis(AbstractQueue, ABC):
+    def _pattern_queue_feedback(self):
+        return f"prpc:feedback:{self._queue_name}"
 
-        self.redis_client: redis.Redis = None
-        self.__create_client_redis(config_broker)
+    def _pattern_queue(self):
+        return f"prpc:{self._queue_name}"
 
-        self.name_queue = name_queue
-        self.expire_task_feedback = expire_task_feedback
-        self.expire_task_process = expire_task_process
+    def _pattern_queue_feedback_task_id(self, task_id):
+        return f"{self._pattern_queue_feedback()}:{task_id}"
 
-        self._create_queue()
-        restore_tasks = self._restoring_processing_tasks()
-        logging.debug(f"Востановлены незавершенные (process) задачи. кол-во задач {len(restore_tasks)}")
 
-    def __create_client_redis(self, config_broker: str | dict):
-        if isinstance(config_broker, str):
-            self.redis_client = redis.from_url(config_broker)
+class ClientQueueRedisSync(AbstractQueueClient, AbstractQueueRedis):
+    def __init__(self, confing_broker: dict, queue_name: str):
+        super().__init__(confing_broker, queue_name)
+
+    def init(self):
+        self._create_client()
+
+    def _create_client(self):
+        if isinstance(self.config_broker, str):
+            self.client = redis.from_url(self.config_broker)
         else:
-            self.redis_client = redis.Redis(host=config_broker["host"], port=config_broker["port"], db=config_broker["db"])
-
-
-    def _create_queue(self):
-        pass
+            self.client = redis.Redis(host=self.config_broker["host"], port=self.config_broker["port"],
+                                      db=self.config_broker["db"])
 
     def add_task_in_queue(self, task: Task):
-        self.redis_client.lpush(self.name_queue, task.model_dump_json())
-
-    def __get_name_task_feedback(self, task_id: uuid.UUID):
-        return f"{self.name_queue}:feedback:{task_id}"
-
-    def __pattern_name_task_processing(self):
-        return f"{self.name_queue}:in_process:"
-
-    def __get_name_task_in_process(self, task_id):
-        return f"{self.__pattern_name_task_processing()}{task_id}"
-
-    def add_task_in_feedback(self, task: TaskDone):
-        self.__delete_task_from_in_process(task)
-        self.redis_client.set(self.__get_name_task_feedback(task.task_id), task.model_dump_json(), self.expire_task_feedback)
+        self.client.lpush(self._pattern_queue(), task.model_dump_json())
 
     def search_task_in_feedback(self, task_id: uuid.UUID):
-        result = self.redis_client.get(self.__get_name_task_feedback(task_id))
-        self.redis_client.delete(self.__get_name_task_feedback(task_id))
+        result = self.client.get(self._pattern_queue_feedback_task_id(task_id))
+        self.client.delete(self._pattern_queue_feedback_task_id(task_id))
         if result is None:
             return
 
         return TaskDone(**json.loads(result))
 
-    def get_next_task_in_queue(self) -> Task | None:
-        result = self.redis_client.rpop(self.name_queue)
-        if result is None:
-            return
 
-        task_data = json.loads(result)
+class ServerQueueRedis(AbstractQueueRedis, AbstractQueueServer):
+
+    async def init(self):
+        await self._create_client()
+        await self._create_queues()
+        restore_tasks = await self._restoring_processing_tasks()
+        logging.debug(f"Востановлены незавершенные (process) задачи. кол-во задач {len(restore_tasks)}")
+
+    def _pattern_name_queue_in_process_task(self, task_id: uuid.UUID):
+        return f"{self._pattern_name_queue_in_process()}:{task_id}"
+
+    def _pattern_name_queue_in_process(self):
+        return f"prpc:in_process:{self._queue_name}"
+
+    async def _create_client(self):
+        if isinstance(self.config_broker, str):
+            self.client = await redis.asyncio.from_url(self.config_broker)
+        else:
+            self.client = await redis.asyncio.Redis(host=self.config_broker["host"],
+                                                    port=self.config_broker["port"],
+                                                    db=self.config_broker["db"])
+
+    async def _create_queues(self):
+        pass
+
+    async def get_next_task_from_queue(self):
+        key, value = await self.client.brpop(self._pattern_queue())
+        task_data = json.loads(value)
         task = Task(**task_data)
 
-        self._save_task_in_process(task)
+        await self._save_task_in_process(task)
         return task
 
-    async def async_get_next_task_in_queue(self) -> Task:
-        while True:
-            result = self.get_next_task_in_queue()
-            if result:
-                return result
-            await asyncio.sleep(1)
+    async def add_task_in_feedback_queue(self, task: TaskDone):
+        await self._delete_task_in_process(task)
+        await self.client.set(self._pattern_queue_feedback_task_id(task.task_id), task.model_dump_json(),
+                              self._expire_task_feedback)
 
-    def _save_task_in_process(self, task: Task):
-        self.redis_client.set(self.__get_name_task_in_process(task.task_id), task.model_dump_json(), self.expire_task_process)
+    async def _save_task_in_process(self, task: Task):
+        await self.client.set(self._pattern_name_queue_in_process_task(task.task_id), task.model_dump_json(),
+                              self._expire_task_process)
 
-    def __delete_task_from_in_process(self, task: Task):
-        self.redis_client.delete(self.__get_name_task_in_process(task.task_id))
+    async def _delete_task_in_process(self, task: Task):
+        await self.client.delete(self._pattern_name_queue_in_process_task(task.task_id))
 
-    def _restoring_processing_tasks(self) -> list[bytes]:
-        keys = self.redis_client.keys(f"{self.__pattern_name_task_processing()}*")
+    async def _restoring_processing_tasks(self) -> list[bytes]:
+        keys = await self.client.keys(f"{self._pattern_name_queue_in_process()}:*")
         results = []
         for key in keys:
-            result = self.redis_client.get(key)
-            self.redis_client.delete(key)
+            result = await self.client.get(key)
+            await self.client.delete(key)
             results.append(result)
 
         if results:
-            self.redis_client.rpush(self.name_queue, *results)
+            await self.client.rpush(self._pattern_queue(), *results)
 
         return results
 
 
-class QueueWithFeedbackFactory:
-    queue_with_feedback: dict[str, QueueWithFeedback] = {
-        'redis': QueueWithFeedbackRedis,
+class QueueFactory:
+    server_queue: dict[str, AbstractQueueServer] = {
+        'redis': ServerQueueRedis,
+    }
+
+    sync_client_queue: dict[str, AbstractQueueClient] = {
+        'redis': ClientQueueRedisSync,
+    }
+
+    async_client_queue: dict[str, AbstractQueueClient] = {
+
     }
 
     @classmethod
-    def get_queue_class(cls, type_broker: Literal["redis"]) -> QueueWithFeedback:
-
-        queue_class = cls.queue_with_feedback.get(type_broker)
+    def get_queue_class_server(cls, type_broker: Literal["redis"]) -> AbstractQueueServer:
+        queue_class = cls.server_queue.get(type_broker)
 
         if queue_class is None:
-            raise Exception(f"only this broker: {cls.queue_with_feedback.keys()}")
+            raise Exception(f"only this broker: {cls.server_queue.keys()}")
+
+        return queue_class
+
+    @classmethod
+    def get_queue_class_sync_client(cls, type_broker: Literal["redis"]) -> AbstractQueueClient:
+        queue_class = cls.sync_client_queue.get(type_broker)
+
+        if queue_class is None:
+            raise Exception(f"only this broker: {cls.sync_client_queue.keys()}")
+
+        return queue_class
+
+    @classmethod
+    def get_queue_class_async_client(cls, type_broker: Literal["redis"]) -> AbstractQueueClient:
+        queue_class = cls.async_client_queue.get(type_broker)
+
+        if queue_class is None:
+            raise Exception(f"only this broker: {cls.async_client_queue.keys()}")
 
         return queue_class

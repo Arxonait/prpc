@@ -4,7 +4,7 @@ import logging
 from multiprocessing import freeze_support
 from typing import Literal
 
-from main.brokers_module import QueueWithFeedback, QueueWithFeedbackFactory
+from main.brokers_module import QueueFactory, AbstractQueueServer
 from main.exceptions import NotFoundFunc
 from main.func_module import FuncData
 from main.task import Task, task_to_task_done
@@ -33,8 +33,8 @@ class AppServer:
                  timeout_worker: datetime.timedelta | None = None,
 
                  name_queue="task_prpc",
-                 expire_task_feedback=datetime.timedelta(hours=12),
-                 expire_task_process=datetime.timedelta(hours=12)):
+                 expire_task_feedback=datetime.timedelta(hours=2),
+                 expire_task_process=datetime.timedelta(hours=2)):
 
         if self.__instance is not None:
             raise Exception("singleton cannot be instantiated more then once ")
@@ -47,9 +47,8 @@ class AppServer:
         self.default_type_worker = default_type_worker
         self.worker_manager = WorkerManager(max_number_worker, timeout_worker)
 
-        queue_class: QueueWithFeedback = QueueWithFeedbackFactory.get_queue_class(type_broker)
-        self.queue: QueueWithFeedback = queue_class(config_broker, name_queue, expire_task_feedback,
-                                                    expire_task_process)
+        queue_class: AbstractQueueServer = QueueFactory.get_queue_class_server(type_broker)
+        self.queue: AbstractQueueServer = queue_class(config_broker, name_queue, expire_task_feedback, expire_task_process)
 
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
@@ -84,7 +83,7 @@ class AppServer:
 
             logging.debug(f"Ожидание новой задачи")
             logging.debug(f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-            task = await self.queue.async_get_next_task_in_queue()
+            task = await self.queue.get_next_task_from_queue()
             logging.info(f"Получена новая задача {task.json()}")
 
             try:
@@ -93,7 +92,7 @@ class AppServer:
                 logging.warning(f"Задача {task.json()} не выполнилась по причине {str(e)}")
                 logging.debug(
                     f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                self.queue.add_task_in_feedback(task_to_task_done(task, exception_info=str(e)))
+                await self.queue.add_task_in_feedback_queue(task_to_task_done(task, exception_info=str(e)))
             else:
                 self.worker_manager.add_new_worker(task, func_data.func, func_data.worker_type)
 
@@ -106,7 +105,7 @@ class AppServer:
                 logging.info(f"Задача {task_done.json()} выполнилась")
                 logging.debug(
                     f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                self.queue.add_task_in_feedback(task_done)
+                await self.queue.add_task_in_feedback_queue(task_done)
             else:
                 self.worker_manager.clear_end_workers()
 
@@ -115,6 +114,8 @@ class AppServer:
     async def __start(self):
         freeze_support()
         logging.info("Старт сервера")
+
+        await self.queue.init()
 
         task_queue = asyncio.create_task(self._task_get_new_task_from_queue())
         task_update = asyncio.create_task(self._task_update_data_about_worker())

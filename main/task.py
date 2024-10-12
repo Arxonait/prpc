@@ -1,14 +1,12 @@
 import datetime
 import uuid
-import json
-from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class Task(BaseModel):
-    name_func: str
+    func_name: str
     func_args: list
     func_kwargs: dict
 

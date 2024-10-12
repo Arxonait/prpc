@@ -47,7 +47,7 @@ class AwaitableTask:
     __client_broker = ClientBroker()
 
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
-        self._task: Task | TaskDone = Task(name_func=func_name, func_args=args, func_kwargs=kwargs)
+        self._task: Task | TaskDone = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
         self._start_task()
 
     def _start_task(self):

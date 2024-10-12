@@ -6,7 +6,7 @@ from typing import Literal
 
 from main.brokers_module import QueueWithFeedback, QueueWithFeedbackFactory
 from main.exceptions import NotFoundFunc
-from main.func_converter import FuncData
+from main.func_module import FuncData
 from main.task import Task, task_to_task_done
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
@@ -69,9 +69,9 @@ class AppServer:
 
     def __get_func_data(self, task: Task) -> FuncData:
         for func_data in self._func_data:
-            if task.name_func == func_data.func_name:
+            if task.func_name == func_data.func_name:
                 return func_data
-        raise NotFoundFunc(task.name_func)
+        raise NotFoundFunc(task.func_name)
 
     async def _task_get_new_task_from_queue(self):
         while True:

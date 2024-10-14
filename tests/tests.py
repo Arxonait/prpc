@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import logging
@@ -13,6 +14,7 @@ from pytest import mark
 
 from main.app_server import AppServer
 from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
+from main.func_module import FuncData
 from main.task import Task
 
 TEST_NAME_QUEUE = "test_queue"
@@ -220,9 +222,10 @@ class TestAppServerRedisThread:
             ("func_for_test_hello", (), {}),
             ("func_for_test_sum", (5, None), {}),
             ("func_for_test_long_task", (), {}),
+            ("func_for_test_greeting", ("Dasha",), {})
         ]
     )
-    def test_run_wrong_funcs(self, func_name, args, kwargs, server_redis_thread_4w_5s, client_queue_redis):
+    def test_run_wrong_funcs(self, func_name, args, kwargs, server_redis_thread_4w_5s, client_queue_redis, clear_redis):
         task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
         client_queue_redis.add_task_in_queue(task)
@@ -262,3 +265,29 @@ class TestAppServerRedisThread:
                 break
             if datetime.datetime.now() - start_wait > datetime.timedelta(seconds=sum(seconds) + len(seconds) * 2):
                 assert False
+
+
+async def func_for_test_func_data_wait_hello():
+    await asyncio.sleep(2)
+    return "hello"
+
+
+class TestFuncData:
+    @pytest.mark.parametrize(
+        "func, worker_type, is_raise_exception",
+        [
+            (func_for_test_hello_world, "thread", False),
+            (func_for_test_hello_world, "process", False),
+            (func_for_test_hello_world, "async", True),
+            (func_for_test_func_data_wait_hello, "thread", True),
+            (func_for_test_func_data_wait_hello, "process", True),
+            (func_for_test_func_data_wait_hello, "async", False),
+        ]
+    )
+    def test_check_ability_to_work_with_function(self, func, worker_type, is_raise_exception):
+        try:
+            FuncData(func, worker_type)
+        except Exception as e:
+            assert is_raise_exception
+        else:
+            assert not is_raise_exception

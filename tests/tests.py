@@ -14,7 +14,7 @@ from pytest import mark
 
 from main.app_server import AppServer
 from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
-from main.func_module import FuncData
+from main.func_module import FuncDataServer
 from main.task import Task
 
 TEST_NAME_QUEUE = "test_queue"
@@ -286,7 +286,7 @@ class TestFuncData:
     )
     def test_check_ability_to_work_with_function(self, func, worker_type, is_raise_exception):
         try:
-            FuncData(func, worker_type)
+            FuncDataServer(func, worker_type)
         except Exception as e:
             assert is_raise_exception
         else:

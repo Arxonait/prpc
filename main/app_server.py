@@ -6,14 +6,14 @@ from typing import Literal
 
 from main.brokers_module import QueueFactory, AbstractQueueServer
 from main.exceptions import NotFoundFunc
-from main.func_module import FuncData
+from main.func_module import FuncDataServer
 from main.task import Task, task_to_task_done
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
 
-def get_function_server() -> list[str]:
-    func_data = AppServer.get_instance().func_data
-    return [func_data_item.create_func() for func_data_item in func_data]
+def get_function_server() -> list[dict]:
+    func_data: list[FuncDataServer] = AppServer.get_instance().func_data
+    return [func_data_item.serialize_data() for func_data_item in func_data]
 
 
 class AppServer:
@@ -41,7 +41,7 @@ class AppServer:
 
         AppServer.__instance = self
 
-        self._func_data: list[FuncData] = []
+        self._func_data: list[FuncDataServer] = []
         self.register_func(get_function_server, WorkerType.THREAD.value)
 
         self.default_type_worker = default_type_worker
@@ -55,18 +55,18 @@ class AppServer:
 
     def register_func(self, func, worker_type: WORKER_TYPE_ANNOTATE = None):
         worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
-        self._func_data.append(FuncData(func, worker_type))
+        self._func_data.append(FuncDataServer(func, worker_type))
 
     def register_funcs(self, *funcs, worker_type: WORKER_TYPE_ANNOTATE = None):
         worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
         for func in funcs:
-            self._func_data.append(FuncData(func, worker_type))
+            self._func_data.append(FuncDataServer(func, worker_type))
 
     @property
     def func_data(self):
         return self._func_data
 
-    def __get_func_data(self, task: Task) -> FuncData:
+    def __get_func_data(self, task: Task) -> FuncDataServer:
         for func_data in self._func_data:
             if task.func_name == func_data.func_name:
                 return func_data

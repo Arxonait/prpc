@@ -3,7 +3,7 @@ import inspect
 from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
 
 
-class FuncData:
+class FuncDataServer:
     def __init__(self, func, worker_type: WORKER_TYPE_ANNOTATE):
         self.func = func
         self.worker_type = worker_type
@@ -28,30 +28,53 @@ class FuncData:
         self.func_kwargs = dict(filter(lambda item: item[1].default != inspect.Parameter.empty, func_args.items()))
         self.is_coroutine = inspect.iscoroutinefunction(self.func)
 
-    def __create_func_head(self) -> str:
-        args = self.func_args.copy()
-        args.update(self.func_kwargs)
-        args_func = ", ".join(self.__create_str_param_head(param) for param in args.values())
+    def serialize_data(self) -> dict:
+        data = {
+            "func_name": self.func_name,
+            "func_args": [self._serialize_func_parameter(parameter) for parameter in self.func_args.values()],
+            "func_kwargs": [self._serialize_func_parameter(parameter) for parameter in self.func_kwargs.values()]
+        }
+        return data
 
-        return f"def {self.func_name}({args_func}):"
-
-    def __create_func_body(self) -> str:
-        args = ", ".join(self.func_args.keys())
-        kwargs = ", ".join(f"'{key}': {key}" for key in self.func_kwargs.keys())
-        return f"\treturn AwaitableTask('{self.func_name}', ({args}), {{{kwargs}}})"
-
-    def create_func(self):
-        return self.__create_func_head() + "\n" + self.__create_func_body()
-
-    def __create_str_param_head(self, param: inspect.Parameter):
-        result = param.name
-
-        if param.annotation != inspect.Parameter.empty:
-            result += f":{param.annotation.__name__}"
-        if param.default != inspect.Parameter.empty:
-            result += f"={param.default}"
-        return result
+    def _serialize_func_parameter(self, parameter: inspect.Parameter) -> dict:
+        data = {"name": parameter.name}
+        if parameter.default != inspect.Parameter.empty:
+            data["default"] = parameter.default
+        if parameter.annotation != inspect.Parameter.empty:
+            data["annotation"] = parameter.annotation.__name__
+        return data
 
     def _validate_func_data(self):
         worker_class = WorkerFactory.get_worker(self.worker_type)
         worker_class.check_ability_to_work_with_function(self)
+
+
+class FuncDataClient:
+    def __init__(self, serialized_data: dict):
+        self.func_name = serialized_data["func_name"]
+        self.func_args: list[dict] = serialized_data["func_args"]
+        self.func_kwargs: list[dict] = serialized_data["func_kwargs"]
+
+    def _create_func_head(self) -> str:
+        args = self.func_args.copy()
+        args.extend(self.func_kwargs)
+        args_func = ", ".join(self._create_str_param_head(param) for param in args)
+
+        return f"def {self.func_name}({args_func}):"
+
+    def _create_func_body(self) -> str:
+        args = ", ".join(arg["name"] for arg in self.func_args)
+        kwargs = ", ".join(f"'{arg['name']}': {arg['name']}" for arg in self.func_kwargs)
+        return f"\treturn AwaitableTask('{self.func_name}', ({args}), {{{kwargs}}})"
+
+    def create_func(self):
+        return self._create_func_head() + "\n" + self._create_func_body()
+
+    def _create_str_param_head(self, param: dict):
+        result = param["name"]
+
+        if "default" in param:
+            result += f"={param['default']}"
+        if "annotation" in param:
+            result += f":{param['annotation']}"
+        return result

@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import multiprocessing
@@ -21,13 +22,15 @@ CONFIG_BROKER_REDIS = {
     "db": 0
 }
 
-@pytest.fixture(scope="class")
-def config_broker_redis():
-    return {
-        "host": "localhost",
-        "port": 6379,
-        "db": 0
-    }
+
+def delete_keys_by_pattern(redis_client, pattern):
+    cursor = 0
+    while True:
+        cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=1000)
+        if keys:
+            redis_client.delete(*keys)
+        if cursor == 0:
+            break
 
 
 @pytest_asyncio.fixture(loop_scope="class")
@@ -38,15 +41,15 @@ async def create_task_in_queue_redis(client_queue_redis):
 
 
 @pytest_asyncio.fixture(loop_scope="class")
-async def server_queue_redis(config_broker_redis, client_redis):
+async def server_queue_redis(client_redis):
     client_redis.delete("prpc:" + TEST_NAME_QUEUE)
-    queue = ServerQueueRedis(config_broker_redis, TEST_NAME_QUEUE)
+    queue = ServerQueueRedis(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
     await queue.init()
     return queue
 
 
 @pytest.fixture(scope="class")
-def client_queue_redis(config_broker_redis, client_redis):
+def client_queue_redis(client_redis):
     client_redis.delete("prpc:" + TEST_NAME_QUEUE)
     queue = ClientQueueRedisSync(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
     queue.init()
@@ -54,9 +57,15 @@ def client_queue_redis(config_broker_redis, client_redis):
 
 
 @pytest.fixture(scope="class")
-def client_redis(config_broker_redis):
-    client = redis.Redis(**config_broker_redis)
+def client_redis():
+    client = redis.Redis(**CONFIG_BROKER_REDIS)
     return client
+
+
+@pytest.fixture
+def clear_redis(client_redis):
+    yield
+    delete_keys_by_pattern(redis_client=client_redis, pattern=f"*{TEST_NAME_QUEUE}*")
 
 
 def func_for_test_hello_world():
@@ -74,21 +83,44 @@ def func_for_test_greeting(name, part_of_day):
     return f"Hi {name}, have a nice {part_of_day}"
 
 
-def __process_server_redis_thread():
+def func_for_test_long_task():
+    time.sleep(100)
+    return "done"
+
+
+def func_for_test_task_5s():
+    time.sleep(5)
+    return "done"
+
+
+def func_for_test_task_custom_sec(secs):
+    time.sleep(secs)
+    return "done"
+
+
+def __process_server_redis_thread(timeout_worker, max_number_worker):
     app = AppServer(type_broker="redis", config_broker={
         "host": "localhost",
         "port": 6379,
         "db": 0
-    }, default_type_worker="thread", max_number_worker=4, name_queue=TEST_NAME_QUEUE)
-    app.register_func(func_for_test_hello_world)
-    app.register_func(func_for_test_sum)
-    app.register_func(func_for_test_greeting)
+    }, default_type_worker="thread",
+                    max_number_worker=max_number_worker, name_queue=TEST_NAME_QUEUE, timeout_worker=timeout_worker)
+    app.register_funcs(func_for_test_hello_world, func_for_test_sum, func_for_test_greeting,
+                       func_for_test_long_task, func_for_test_task_5s, func_for_test_task_custom_sec)
     app.start()
 
 
 @pytest.fixture(scope="session")
-def server_redis_thread():
-    process = multiprocessing.Process(target=__process_server_redis_thread)
+def server_redis_thread_4w_5s():
+    process = multiprocessing.Process(target=__process_server_redis_thread, args=(datetime.timedelta(seconds=5), 4))
+    process.start()
+    yield process
+    process.terminate()
+
+
+@pytest.fixture(scope="session")
+def server_redis_thread_2w_20s():
+    process = multiprocessing.Process(target=__process_server_redis_thread, args=(datetime.timedelta(seconds=20), 2))
     process.start()
     yield process
     process.terminate()
@@ -96,7 +128,7 @@ def server_redis_thread():
 
 @pytest.mark.asyncio(loop_scope="class")
 class TestRedisBroker:
-    def test_add_task_in_queue(self, client_queue_redis, client_redis):
+    def test_add_task_in_queue(self, client_queue_redis, client_redis, clear_redis):
         task = Task(func_name="test_func", func_args=[], func_kwargs={})
 
         client_queue_redis.add_task_in_queue(task)
@@ -106,15 +138,16 @@ class TestRedisBroker:
 
         assert task.task_id == saved_task.task_id
 
-    async def test_get_task_from_queue(self, server_queue_redis, client_redis, create_task_in_queue_redis):
+    async def test_get_task_from_queue(self, server_queue_redis, client_redis, create_task_in_queue_redis, clear_redis):
         created_task = create_task_in_queue_redis
         task = await server_queue_redis.get_next_task_from_queue()
+
+        assert client_redis.llen("prpc:" + TEST_NAME_QUEUE) == 0
 
         assert isinstance(task, Task)
         assert created_task.task_id == task.task_id
 
         task_data = json.loads(client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}"))
-        client_redis.delete(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
         task_processing = Task(**task_data)
 
         assert task_processing.task_id == created_task.task_id
@@ -133,8 +166,8 @@ class TestRedisBroker:
         task_processing = Task(**task_data)
         assert task_processing.task_id == created_task.task_id
 
-
-    async def test_search_task_in_feedback(self, server_queue_redis, client_queue_redis, client_redis, create_task_in_queue_redis):
+    async def test_search_task_in_feedback(self, server_queue_redis, client_queue_redis, client_redis,
+                                           create_task_in_queue_redis):
         created_task = create_task_in_queue_redis
         task = await server_queue_redis.get_next_task_from_queue()
 
@@ -147,6 +180,19 @@ class TestRedisBroker:
 
         assert task.task_id == created_task.task_id
 
+    async def test_restore_tasks(self, client_queue_redis, clear_redis, client_redis):
+        task = Task(func_name="test_func", func_args=[], func_kwargs={})
+        client_queue_redis.add_task_in_queue(task)
+
+        queue = ServerQueueRedis(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+        await queue.init()
+        await queue.get_next_task_from_queue()
+        del queue
+        queue = ServerQueueRedis(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+        await queue.init()
+
+        assert client_redis.llen("prpc:" + TEST_NAME_QUEUE) == 1
+
 
 class TestAppServerRedisThread:
     @pytest.mark.parametrize(
@@ -157,7 +203,7 @@ class TestAppServerRedisThread:
             ("func_for_test_greeting", (), {"name": "dasha", "part_of_day": "day"}, "Hi dasha, have a nice day")
         ]
     )
-    def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread, client_queue_redis):
+    def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread_4w_5s, client_queue_redis):
         task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
         client_queue_redis.add_task_in_queue(task)
@@ -173,9 +219,10 @@ class TestAppServerRedisThread:
         [
             ("func_for_test_hello", (), {}),
             ("func_for_test_sum", (5, None), {}),
+            ("func_for_test_long_task", (), {}),
         ]
     )
-    def test_run_wrong_funcs(self, func_name, args, kwargs, server_redis_thread, client_queue_redis):
+    def test_run_wrong_funcs(self, func_name, args, kwargs, server_redis_thread_4w_5s, client_queue_redis):
         task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
         client_queue_redis.add_task_in_queue(task)
@@ -186,3 +233,32 @@ class TestAppServerRedisThread:
                 assert task_result.exception_info is not None
                 break
             time.sleep(0.5)
+
+    def test_max_number_worker(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis):
+        tasks_id = []
+        for _ in range(6):
+            task = Task(func_name="func_for_test_task_5s", func_args=(), func_kwargs={})
+            client_queue_redis.add_task_in_queue(task)
+            tasks_id.append(task.task_id)
+
+        time.sleep(1)
+        assert 6 - 2 == client_redis.llen("prpc:" + TEST_NAME_QUEUE)
+        assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[0]}")
+        assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[1]}")
+        assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[2]}") is None
+
+    def test_done_all_task(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis):
+        tasks_id = []
+        seconds = [5, 1, 1, 2, 3, 1]
+        for secs in seconds:
+            task = Task(func_name="func_for_test_task_custom_sec", func_args=(secs,), func_kwargs={})
+            client_queue_redis.add_task_in_queue(task)
+            tasks_id.append(task.task_id)
+
+        start_wait = datetime.datetime.now()
+        while True:
+            keys = client_redis.keys(f"prpc:feedback:{TEST_NAME_QUEUE}:*")
+            if len(keys) == len(seconds):
+                break
+            if datetime.datetime.now() - start_wait > datetime.timedelta(seconds=sum(seconds) + len(seconds) * 2):
+                assert False

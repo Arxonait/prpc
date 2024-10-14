@@ -27,27 +27,23 @@ class ClientBroker:
             raise Exception("singleton cannot be instantiated more then once")
         ClientBroker.__instance = self
 
-        type_broker, config_broker, queue_name, connect_async = self._parse_env()
-        if connect_async:
-            queue_class = QueueFactory().get_queue_class_async_client(type_broker)
-            self.queue: AbstractQueueClient = queue_class(config_broker, queue_name)
-        else:
-            queue_class = QueueFactory().get_queue_class_sync_client(type_broker)
-            self.queue: AbstractQueueClient = queue_class(config_broker, queue_name)
+        type_broker, config_broker, queue_name = self._parse_env()
+        queue_class = QueueFactory().get_queue_class_sync_client(type_broker)
+        self.queue: AbstractQueueClient = queue_class(config_broker, queue_name)
         self.queue.init()
 
     def _parse_env(self):
         load_dotenv()
         type_broker = os.getenv("PRPC_TYPE_BROKER")
         config_broker = os.getenv("PRPC_URL_BROKER")
-        connect_async = os.getenv("PRPC_CONNECT_ASYNC", False)
+        # connect_async = os.getenv("PRPC_CONNECT_ASYNC", False)
         queue_name = os.getenv("PRPC_QUEUE_NAME")
 
         if not (type_broker and config_broker and queue_name):
-            logging.error(f"{type_broker=}, {config_broker=}, {queue_name=}, {connect_async=}")
+            logging.error(f"{type_broker=}, {config_broker=}, {queue_name=}")
             raise Exception("env PRPC_TYPE_BROKER, PRPC_URL_BROKER, PRPC_QUEUE_NAME must be installed")
 
-        return type_broker, config_broker, queue_name, connect_async
+        return type_broker, config_broker, queue_name
 
 
 class AwaitableTask:

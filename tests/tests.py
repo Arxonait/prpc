@@ -1,19 +1,25 @@
 import json
 import logging
 import multiprocessing
+import threading
 import time
 
 import pytest
+import pytest_asyncio
 import redis
 
 from pytest import mark
 
 from main.app_server import AppServer
-from main.brokers_module import QueueWithFeedbackRedis
+from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
 from main.task import Task
 
 TEST_NAME_QUEUE = "test_queue"
-
+CONFIG_BROKER_REDIS = {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0
+}
 
 @pytest.fixture(scope="class")
 def config_broker_redis():
@@ -24,22 +30,26 @@ def config_broker_redis():
     }
 
 
-@pytest.fixture(scope="class")
-def name_queue():
-    return TEST_NAME_QUEUE
-
-
-@pytest.fixture
-def create_task_in_queue_redis(queue_redis):
-    task = Task(name_func="test_func", func_args=[], func_kwargs={})
-    queue_redis.add_task_in_queue(task)
+@pytest_asyncio.fixture(loop_scope="class")
+async def create_task_in_queue_redis(client_queue_redis):
+    task = Task(func_name="test_func", func_args=[], func_kwargs={})
+    client_queue_redis.add_task_in_queue(task)
     return task
 
 
+@pytest_asyncio.fixture(loop_scope="class")
+async def server_queue_redis(config_broker_redis, client_redis):
+    client_redis.delete("prpc:" + TEST_NAME_QUEUE)
+    queue = ServerQueueRedis(config_broker_redis, TEST_NAME_QUEUE)
+    await queue.init()
+    return queue
+
+
 @pytest.fixture(scope="class")
-def queue_redis(config_broker_redis, client_redis):
-    client_redis.delete(TEST_NAME_QUEUE)
-    queue = QueueWithFeedbackRedis(config_broker_redis, TEST_NAME_QUEUE, None, None)
+def client_queue_redis(config_broker_redis, client_redis):
+    client_redis.delete("prpc:" + TEST_NAME_QUEUE)
+    queue = ClientQueueRedisSync(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+    queue.init()
     return queue
 
 
@@ -69,10 +79,10 @@ def __process_server_redis_thread():
         "host": "localhost",
         "port": 6379,
         "db": 0
-    }, type_worker="thread", max_number_worker=4, name_queue=TEST_NAME_QUEUE)
-    app.append_func(func_for_test_hello_world)
-    app.append_func(func_for_test_sum)
-    app.append_func(func_for_test_greeting)
+    }, default_type_worker="thread", max_number_worker=4, name_queue=TEST_NAME_QUEUE)
+    app.register_func(func_for_test_hello_world)
+    app.register_func(func_for_test_sum)
+    app.register_func(func_for_test_greeting)
     app.start()
 
 
@@ -84,52 +94,58 @@ def server_redis_thread():
     process.terminate()
 
 
+@pytest.mark.asyncio(loop_scope="class")
 class TestRedisBroker:
-    def test_add_task_in_queue(self, queue_redis, client_redis):
-        task = Task(name_func="test_func", func_args=[], func_kwargs={})
+    def test_add_task_in_queue(self, client_queue_redis, client_redis):
+        task = Task(func_name="test_func", func_args=[], func_kwargs={})
 
-        queue_redis.add_task_in_queue(task)
+        client_queue_redis.add_task_in_queue(task)
 
-        task_data = json.loads(client_redis.lpop(TEST_NAME_QUEUE))
+        task_data = json.loads(client_redis.lpop("prpc:" + TEST_NAME_QUEUE))
         saved_task = Task(**task_data)
 
         assert task.task_id == saved_task.task_id
 
-    def test_get_task_from_queue(self, queue_redis, client_redis, create_task_in_queue_redis):
-        task = queue_redis.get_next_task_in_queue()
+    async def test_get_task_from_queue(self, server_queue_redis, client_redis, create_task_in_queue_redis):
+        created_task = create_task_in_queue_redis
+        task = await server_queue_redis.get_next_task_from_queue()
 
         assert isinstance(task, Task)
-        assert create_task_in_queue_redis.task_id == task.task_id
+        assert created_task.task_id == task.task_id
 
-        task_data = json.loads(client_redis.get(f"{TEST_NAME_QUEUE}:in_process:{task.task_id}"))
-        client_redis.delete(f"{TEST_NAME_QUEUE}:in_process:{task.task_id}")
+        task_data = json.loads(client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}"))
+        client_redis.delete(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
         task_processing = Task(**task_data)
 
-        assert task_processing.task_id == create_task_in_queue_redis.task_id
+        assert task_processing.task_id == created_task.task_id
 
-    def test_save_task_in_feedback(self, queue_redis, client_redis, create_task_in_queue_redis):
-        task = queue_redis.get_next_task_in_queue()
+    async def test_save_task_in_feedback(self, server_queue_redis, client_redis, create_task_in_queue_redis):
+        created_task = create_task_in_queue_redis
+        task = await server_queue_redis.get_next_task_from_queue()
 
-        queue_redis.add_task_in_feedback(task)
+        await server_queue_redis.add_task_in_feedback_queue(task)
 
-        task_data = client_redis.get(f"{TEST_NAME_QUEUE}:in_process:{task.task_id}")
+        task_data = client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
         assert task_data is None
 
-        task_data = json.loads(client_redis.get(f"{TEST_NAME_QUEUE}:feedback:{task.task_id}"))
-        client_redis.delete(f"{TEST_NAME_QUEUE}:feedback:{task.task_id}")
+        task_data = json.loads(client_redis.get(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}"))
+        client_redis.delete(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
         task_processing = Task(**task_data)
-        assert task_processing.task_id == create_task_in_queue_redis.task_id
+        assert task_processing.task_id == created_task.task_id
 
-    def test_search_task_in_feedback(self, queue_redis, client_redis, create_task_in_queue_redis):
-        task = queue_redis.get_next_task_in_queue()
-        queue_redis.add_task_in_feedback(task)
 
-        task = queue_redis.search_task_in_feedback(task.task_id)
+    async def test_search_task_in_feedback(self, server_queue_redis, client_queue_redis, client_redis, create_task_in_queue_redis):
+        created_task = create_task_in_queue_redis
+        task = await server_queue_redis.get_next_task_from_queue()
 
-        task_data = client_redis.get(f"{TEST_NAME_QUEUE}:feedback:{task.task_id}")
+        await server_queue_redis.add_task_in_feedback_queue(task)
+
+        task = client_queue_redis.search_task_in_feedback(task.task_id)
+
+        task_data = client_redis.get(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
         assert task_data is None
 
-        assert task.task_id == create_task_in_queue_redis.task_id
+        assert task.task_id == created_task.task_id
 
 
 class TestAppServerRedisThread:
@@ -141,15 +157,32 @@ class TestAppServerRedisThread:
             ("func_for_test_greeting", (), {"name": "dasha", "part_of_day": "day"}, "Hi dasha, have a nice day")
         ]
     )
-    def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread, queue_redis):
-        task = Task(name_func=func_name, func_args=args, func_kwargs=kwargs)
+    def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread, client_queue_redis):
+        task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
-        queue_redis.add_task_in_queue(task)
+        client_queue_redis.add_task_in_queue(task)
         while True:
-            task_result = queue_redis.search_task_in_feedback(task.task_id)
+            task_result = client_queue_redis.search_task_in_feedback(task.task_id)
             if task_result:
                 assert task_result.result == expected
                 break
             time.sleep(0.5)
 
+    @pytest.mark.parametrize(
+        "func_name, args, kwargs",
+        [
+            ("func_for_test_hello", (), {}),
+            ("func_for_test_sum", (5, None), {}),
+        ]
+    )
+    def test_run_wrong_funcs(self, func_name, args, kwargs, server_redis_thread, client_queue_redis):
+        task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
+        client_queue_redis.add_task_in_queue(task)
+        while True:
+            task_result = client_queue_redis.search_task_in_feedback(task.task_id)
+            if task_result:
+                assert task_result.result is None
+                assert task_result.exception_info is not None
+                break
+            time.sleep(0.5)

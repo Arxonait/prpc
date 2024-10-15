@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 import threading
 import time
+from turtle import Turtle
 
 import pytest
 import pytest_asyncio
@@ -16,6 +17,7 @@ from main.app_server import AppServer
 from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
 from main.func_module import FuncDataServer
 from main.task import Task
+from main.type_module import ManagerTypes
 
 TEST_NAME_QUEUE = "test_queue"
 CONFIG_BROKER_REDIS = {
@@ -291,3 +293,31 @@ class TestFuncData:
             assert is_raise_exception
         else:
             assert not is_raise_exception
+
+
+class TestManageTypes:
+    @pytest.mark.parametrize(
+        "value, is_good_value",
+        [
+            [11, True],
+            ["foo", True],
+            [datetime.datetime.now(), True],
+            [ManagerTypes(), False]
+        ]
+    )
+    def test_check_work_with_value(self ,value, is_good_value):
+        manager_types = ManagerTypes()
+        assert manager_types.is_valid_value(value) == is_good_value
+
+    @pytest.mark.parametrize(
+        "value, pattern_serialize", [
+            [datetime.datetime.now(), "datetime:"]
+        ]
+    )
+    def test_lib_type_serialize_and_restore_value(self, value, pattern_serialize):
+        manager_types = ManagerTypes()
+        serialized_value = manager_types.serialize_value(value)
+        assert serialized_value.startswith(pattern_serialize)
+        assert value == manager_types.recover_value(serialized_value)
+
+

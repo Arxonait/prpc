@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 from main.brokers_module import QueueFactory, AbstractQueueClient
 from main.task import Task
-from main.type_module import ManagerTypes
 
 
 def get_function_server():
@@ -49,7 +48,6 @@ class ClientBroker:
 
 class AwaitableTask:
     __client_broker = ClientBroker()
-    _manager_types = ManagerTypes()
 
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
         self._task: Task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)

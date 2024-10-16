@@ -90,7 +90,7 @@ class AppServer:
             logging.debug(f"Ожидание новой задачи")
             logging.debug(f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
             task = await self.queue.get_next_task_from_queue()
-            logging.info(f"Получена новая задача {task.json()}")
+            logging.info(f"Получена новая задача {task}")
 
             try:
                 func_data = self.__get_func_data(task)

@@ -1,23 +1,16 @@
 import asyncio
 import datetime
-import json
-import logging
 import multiprocessing
-import threading
 import time
-from turtle import Turtle
 
 import pytest
 import pytest_asyncio
 import redis
 
-from pytest import mark
-
 from main.app_server import AppServer
 from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
 from main.func_module import FuncDataServer
 from main.task import Task
-from main.type_module import ManagerTypes
 
 TEST_NAME_QUEUE = "test_queue"
 CONFIG_BROKER_REDIS = {
@@ -137,8 +130,8 @@ class TestRedisBroker:
 
         client_queue_redis.add_task_in_queue(task)
 
-        task_data = json.loads(client_redis.lpop("prpc:" + TEST_NAME_QUEUE))
-        saved_task = Task(**task_data)
+        task_data = client_redis.lpop("prpc:" + TEST_NAME_QUEUE)
+        saved_task = Task.deserialize(task_data)
 
         assert task.task_id == saved_task.task_id
 
@@ -151,8 +144,8 @@ class TestRedisBroker:
         assert isinstance(task, Task)
         assert created_task.task_id == task.task_id
 
-        task_data = json.loads(client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}"))
-        task_processing = Task(**task_data)
+        task_data = client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
+        task_processing = Task.deserialize(task_data)
 
         assert task_processing.task_id == created_task.task_id
 
@@ -165,9 +158,9 @@ class TestRedisBroker:
         task_data = client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
         assert task_data is None
 
-        task_data = json.loads(client_redis.get(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}"))
+        task_data = client_redis.get(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
         client_redis.delete(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
-        task_processing = Task(**task_data)
+        task_processing = Task.deserialize(task_data)
         assert task_processing.task_id == created_task.task_id
 
     async def test_search_task_in_feedback(self, server_queue_redis, client_queue_redis, client_redis,
@@ -294,30 +287,5 @@ class TestFuncData:
         else:
             assert not is_raise_exception
 
-
-class TestManageTypes:
-    @pytest.mark.parametrize(
-        "value, is_good_value",
-        [
-            [11, True],
-            ["foo", True],
-            [datetime.datetime.now(), True],
-            [ManagerTypes(), False]
-        ]
-    )
-    def test_check_work_with_value(self ,value, is_good_value):
-        manager_types = ManagerTypes()
-        assert manager_types.is_valid_value(value) == is_good_value
-
-    @pytest.mark.parametrize(
-        "value, pattern_serialize", [
-            [datetime.datetime.now(), "datetime:"]
-        ]
-    )
-    def test_lib_type_serialize_and_restore_value(self, value, pattern_serialize):
-        manager_types = ManagerTypes()
-        serialized_value = manager_types.serialize_value(value)
-        assert serialized_value.startswith(pattern_serialize)
-        assert value == manager_types.recover_value(serialized_value)
 
 

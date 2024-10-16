@@ -1,9 +1,12 @@
 import datetime
+import logging
 import uuid
 from typing import Any
 
 import jsonpickle
 from pydantic import BaseModel, Field
+
+from main.type_module import CheckerAccessType
 
 
 class Task:
@@ -36,11 +39,25 @@ class Task:
         return True
 
     def serialize(self):
+        if self.is_task_done():
+            result, wrong_values = CheckerAccessType().check_obj(self.result)
+        else:
+            result_args, wrong_values_args = CheckerAccessType().check_obj(self.func_args)
+            result_kwargs, wrong_values_kwargs = CheckerAccessType().check_obj(self.func_kwargs)
+            result = result_args and result_kwargs
+            wrong_values = wrong_values_args + wrong_values_kwargs
+        if not result:
+            logging.warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
+            logging.warning(f"Возможно востановить объекты модулей {CheckerAccessType.base_module} и {CheckerAccessType.lib_module}, а также конректных типов {CheckerAccessType.specific_type}")
+
         return jsonpickle.dumps(self)
 
     @classmethod
     def deserialize(cls, serialize_task):
-        return jsonpickle.loads(serialize_task)
+        logging.debug(f"Началась сериализация данных {serialize_task}")
+        task = jsonpickle.loads(serialize_task)
+        logging.debug(f"Закончилась сериализация данных")
+        return task
 
     def __str__(self):
         if self.is_task_done():

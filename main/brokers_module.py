@@ -9,7 +9,7 @@ from typing import Literal
 
 import redis
 
-from main.task import Task, TaskDone
+from main.task import Task
 
 
 class AbstractQueue(ABC):
@@ -45,7 +45,7 @@ class AbstractQueueClient(AbstractQueue, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def search_task_in_feedback(self, task_id: uuid.UUID) -> TaskDone:
+    def search_task_in_feedback(self, task_id: uuid.UUID) -> Task:
         raise NotImplementedError
 
 
@@ -70,7 +70,7 @@ class AbstractQueueServer(AbstractQueue, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def add_task_in_feedback_queue(self, task: TaskDone):
+    async def add_task_in_feedback_queue(self, task: Task):
         raise NotImplementedError
 
 
@@ -98,7 +98,7 @@ class ClientQueueRedisSync(AbstractQueueClient, AbstractQueueRedis):
                                       db=self.config_broker["db"])
 
     def add_task_in_queue(self, task: Task):
-        self.client.lpush(self._pattern_queue(), task.model_dump_json())
+        self.client.lpush(self._pattern_queue(), task.serialize())
 
     def search_task_in_feedback(self, task_id: uuid.UUID):
         result = self.client.get(self._pattern_queue_feedback_task_id(task_id))
@@ -106,7 +106,7 @@ class ClientQueueRedisSync(AbstractQueueClient, AbstractQueueRedis):
         if result is None:
             return
 
-        return TaskDone(**json.loads(result))
+        return Task.deserialize(result)
 
 
 # class ClientQueueRedisAsync(AbstractQueueClient, AbstractQueueRedis):
@@ -161,19 +161,18 @@ class ServerQueueRedis(AbstractQueueRedis, AbstractQueueServer):
 
     async def get_next_task_from_queue(self):
         key, value = await self.client.brpop(self._pattern_queue())
-        task_data = json.loads(value)
-        task = Task(**task_data)
+        task = Task.deserialize(value)
 
         await self._save_task_in_process(task)
         return task
 
-    async def add_task_in_feedback_queue(self, task: TaskDone):
+    async def add_task_in_feedback_queue(self, task: Task):
         await self._delete_task_in_process(task)
-        await self.client.set(self._pattern_queue_feedback_task_id(task.task_id), task.model_dump_json(),
+        await self.client.set(self._pattern_queue_feedback_task_id(task.task_id), task.serialize(),
                               self._expire_task_feedback)
 
     async def _save_task_in_process(self, task: Task):
-        await self.client.set(self._pattern_name_queue_in_process_task(task.task_id), task.model_dump_json(),
+        await self.client.set(self._pattern_name_queue_in_process_task(task.task_id), task.serialize(),
                               self._expire_task_process)
 
     async def _delete_task_in_process(self, task: Task):

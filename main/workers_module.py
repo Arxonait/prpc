@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import datetime
 import logging
 from abc import ABC, abstractmethod
@@ -10,7 +9,7 @@ from enum import Enum
 from functools import partial
 from typing import Literal, Callable
 
-from main.task import Task, TaskDone
+from main.task import Task
 
 
 class WorkerType(Enum):
@@ -57,22 +56,21 @@ class Worker(ABC):
         raise NotImplementedError
 
     def check_end_work(self):
-        if isinstance(self.task, TaskDone):
+        if self.task.is_task_done():
             return True
 
         if self._check_done_of_concurrence_obj():
             try:
                 result = self._get_result_of_concurrence_obj()
             except Exception as e:
-                self.task = TaskDone(**self.task.model_dump(), exception_info=str(e))
+                self.task.task_to_done(exception_info=str(e))
             else:
-                self.task = TaskDone(**self.task.model_dump(), result=result)
+                self.task.task_to_done(result=result)
             return True
 
         if self.timeout and datetime.datetime.now() - self._time_start_work > self.timeout:
             self.stop_work()
-            self.task = TaskDone(**self.task.model_dump(),
-                                 exception_info=f"the task was completed by server timeout {self.timeout.total_seconds()} secs.")
+            self.task.task_to_done(exception_info=f"the task was completed by server timeout {self.timeout.total_seconds()} secs.")
             return True
 
         return False
@@ -82,7 +80,7 @@ class Worker(ABC):
         return self.task
 
     def get_result(self):
-        if isinstance(self.task, TaskDone):
+        if self.task.is_task_done():
             return self.task.result
         return None
 

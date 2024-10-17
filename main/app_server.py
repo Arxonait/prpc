@@ -16,6 +16,9 @@ def get_function_server() -> list[dict]:
     func_data: list[FuncDataServer] = AppServer.get_instance().func_data
     return [func_data_item.serialize_data() for func_data_item in func_data]
 
+def ping():
+    return "pong"
+
 
 class AppServer:
     __instance = None
@@ -44,6 +47,7 @@ class AppServer:
 
         self._func_data: list[FuncDataServer] = []
         self.register_func(get_function_server, WorkerType.THREAD.value)
+        self.register_func(ping, WorkerType.THREAD.value)
 
         self.default_type_worker = default_type_worker
         self.worker_manager = WorkerManager(max_number_worker, timeout_worker)

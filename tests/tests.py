@@ -1,12 +1,15 @@
 import asyncio
 import datetime
 import multiprocessing
+import os
 import time
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
 import redis
 
+from main.app_client import ping, ClientBroker
 from main.app_server import AppServer
 from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
 from main.func_module import FuncDataServer
@@ -18,6 +21,13 @@ CONFIG_BROKER_REDIS = {
     "port": 6379,
     "db": 0
 }
+
+
+@pytest.fixture()
+def set_env_client_data():
+    os.environ["PRPC_TYPE_BROKER"] = "redis"
+    os.environ["PRPC_URL_BROKER"] = "redis://localhost:6379/0"
+    os.environ["PRPC_QUEUE_NAME"] = TEST_NAME_QUEUE
 
 
 def delete_keys_by_pattern(redis_client, pattern):
@@ -100,14 +110,16 @@ def __process_server_redis_thread(timeout_worker, max_number_worker):
         "host": "localhost",
         "port": 6379,
         "db": 0
-    }, default_type_worker="thread",
+    },
+                    default_type_worker="thread",
                     max_number_worker=max_number_worker, name_queue=TEST_NAME_QUEUE, timeout_worker=timeout_worker)
     app.register_funcs(func_for_test_hello_world, func_for_test_sum, func_for_test_greeting,
-                       func_for_test_long_task, func_for_test_task_5s, func_for_test_task_custom_sec)
+                       func_for_test_long_task, func_for_test_task_5s, func_for_test_task_custom_sec,
+                       worker_type="thread")
     app.start()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def server_redis_thread_4w_5s():
     process = multiprocessing.Process(target=__process_server_redis_thread, args=(datetime.timedelta(seconds=5), 4))
     process.start()
@@ -115,7 +127,7 @@ def server_redis_thread_4w_5s():
     process.terminate()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def server_redis_thread_2w_20s():
     process = multiprocessing.Process(target=__process_server_redis_thread, args=(datetime.timedelta(seconds=20), 2))
     process.start()
@@ -200,7 +212,8 @@ class TestAppServerRedisThread:
             ("func_for_test_greeting", (), {"name": "dasha", "part_of_day": "day"}, "Hi dasha, have a nice day")
         ]
     )
-    def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread_4w_5s, client_queue_redis):
+    def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread_4w_5s, client_queue_redis,
+                       clear_redis):
         task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
         client_queue_redis.add_task_in_queue(task)
@@ -232,14 +245,16 @@ class TestAppServerRedisThread:
                 break
             time.sleep(0.5)
 
-    def test_max_number_worker(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis):
+    def test_max_number_worker(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis, set_env_client_data):
+        task_ping = ping()
+
         tasks_id = []
         for _ in range(6):
-            task = Task(func_name="func_for_test_task_5s", func_args=(), func_kwargs={})
+            task = Task(func_name="func_for_test_task_custom_sec", func_args=(15,), func_kwargs={})
             client_queue_redis.add_task_in_queue(task)
             tasks_id.append(task.task_id)
 
-        time.sleep(1)
+        task_ping.sync_wait_result_task(datetime.timedelta(seconds=10))
         assert 6 - 2 == client_redis.llen("prpc:" + TEST_NAME_QUEUE)
         assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[0]}")
         assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[1]}")
@@ -286,6 +301,3 @@ class TestFuncData:
             assert is_raise_exception
         else:
             assert not is_raise_exception
-
-
-

@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+from functools import wraps
 from multiprocessing import freeze_support
 from typing import Literal
 
@@ -28,8 +29,8 @@ class AppServer:
     def __init__(self,
                  type_broker: Literal["redis"],
                  config_broker: dict | str,
-                 default_type_worker: WORKER_TYPE_ANNOTATE,
-                 max_number_worker: int,
+                 default_type_worker: WORKER_TYPE_ANNOTATE = "thread",
+                 max_number_worker: int = 4,
                  timeout_worker: datetime.timedelta | None = None,
 
                  name_queue="task_prpc",
@@ -48,19 +49,33 @@ class AppServer:
         self.worker_manager = WorkerManager(max_number_worker, timeout_worker)
 
         queue_class: AbstractQueueServer = QueueFactory.get_queue_class_server(type_broker)
-        self.queue: AbstractQueueServer = queue_class(config_broker, name_queue, expire_task_feedback, expire_task_process)
+        self.queue: AbstractQueueServer = queue_class(config_broker, name_queue, expire_task_feedback,
+                                                      expire_task_process)
 
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
 
-    def register_func(self, func, worker_type: WORKER_TYPE_ANNOTATE = None):
-        worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
-        self._func_data.append(FuncDataServer(func, worker_type))
+    def decorator_reg_func(self, worker_type: WORKER_TYPE_ANNOTATE | None = None):
+        def decorator(func):
+            self.register_func(func, worker_type)
 
-    def register_funcs(self, *funcs, worker_type: WORKER_TYPE_ANNOTATE = None):
-        worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
-        for func in funcs:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            return wrapper
+
+        return decorator
+
+    def register_func(self, func, worker_type: WORKER_TYPE_ANNOTATE | None = None):
+        if not self._is_registered_func(func):
+            worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
             self._func_data.append(FuncDataServer(func, worker_type))
+            logging.info(f"Функция {func.__name__} зарегистрирована")
+
+    def register_funcs(self, *funcs, worker_type: WORKER_TYPE_ANNOTATE | None = None):
+        for func in funcs:
+            self.register_func(func, worker_type)
 
     @property
     def func_data(self):
@@ -71,6 +86,12 @@ class AppServer:
             if task.func_name == func_data.func_name:
                 return func_data
         raise NotFoundFunc(task.func_name)
+
+    def _is_registered_func(self, func):
+        for func_data in self._func_data:
+            if func_data.func_name == func.__name__:
+                return True
+        return False
 
     async def _handler_task_with_exception(self, task: Task):
         assert task.exception_info is not None, "Только для задач с инофрмацией об ошибке"
@@ -84,11 +105,13 @@ class AppServer:
             if not self.worker_manager.check_possibility_add_new_worker():
                 logging.debug(
                     f"Все воркеры заняты. Макс воркеров {self.worker_manager.max_number_worker} --- Текущие воркеры {self.worker_manager.get_count_current_workers()}")
-                await asyncio.wait(self.worker_manager.get_future_current_workers(), return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait(self.worker_manager.get_future_current_workers(),
+                                   return_when=asyncio.FIRST_COMPLETED)
                 self.worker_manager.update_data_about_workers()
 
             logging.debug(f"Ожидание новой задачи")
-            logging.debug(f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
+            logging.debug(
+                f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
             task = await self.queue.get_next_task_from_queue()
             logging.info(f"Получена новая задача {task}")
 
@@ -128,4 +151,3 @@ class AppServer:
 
     def start(self):
         asyncio.run(self.__start())
-

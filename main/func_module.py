@@ -48,6 +48,9 @@ class FuncDataServer:
         worker_class = WorkerFactory.get_worker(self.worker_type)
         worker_class.check_ability_to_work_with_function(self)
 
+    def __repr__(self):
+        return f"FuncDataServer: func_name={self.func_name}, worker_type={self.worker_type}"
+
 
 class FuncDataClient:
     def __init__(self, serialized_data: dict):

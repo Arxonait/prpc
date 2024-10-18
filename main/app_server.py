@@ -13,9 +13,10 @@ from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
 
 def get_function_server() -> list[dict]:
-    system_func = [get_function_server]
-    func_data: list[FuncDataServer] = AppServer.get_instance().func_data
-    return [func_data_item.serialize_data() for func_data_item in func_data if func_data_item.func not in system_func]
+    app_server: AppServer = AppServer.get_instance()
+    func_data: list[FuncDataServer] = app_server.func_data
+    return [func_data_item.serialize_data() for func_data_item in func_data
+            if func_data_item.func not in app_server.system_func]
 
 
 def ping():
@@ -24,6 +25,7 @@ def ping():
 
 class AppServer:
     __instance = None
+    system_func = [get_function_server]
 
     @classmethod
     def get_instance(cls):

@@ -1,10 +1,11 @@
 import inspect
+from typing import Callable
 
 from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
 
 
 class FuncDataServer:
-    def __init__(self, func, worker_type: WORKER_TYPE_ANNOTATE):
+    def __init__(self, func: Callable, worker_type: WORKER_TYPE_ANNOTATE):
         self.func = func
         self.worker_type = worker_type
 

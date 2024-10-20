@@ -1,6 +1,7 @@
 import inspect
 from typing import Callable
 
+from main.type_module import SerializedAnnotation
 from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
 
 
@@ -42,7 +43,7 @@ class FuncDataServer:
         if parameter.default != inspect.Parameter.empty:
             data["default"] = parameter.default
         if parameter.annotation != inspect.Parameter.empty:
-            data["annotation"] = parameter.annotation.__name__
+            data["annotation"] = SerializedAnnotation.serialize_annotation(parameter.annotation)
         return data
 
     def _validate_func_data(self):

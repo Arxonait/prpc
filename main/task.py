@@ -4,9 +4,8 @@ import uuid
 from typing import Any
 
 import jsonpickle
-from pydantic import BaseModel, Field
 
-from main.type_module import CheckerAccessType
+from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
 
 
 class Task:
@@ -40,15 +39,15 @@ class Task:
 
     def serialize(self):
         if self.is_task_done():
-            result, wrong_values = CheckerAccessType().check_obj(self.result)
+            result, wrong_values = CheckerValueSerialize().is_value_good_for_serialize(self.result)
         else:
-            result_args, wrong_values_args = CheckerAccessType().check_obj(self.func_args)
-            result_kwargs, wrong_values_kwargs = CheckerAccessType().check_obj(self.func_kwargs)
+            result_args, wrong_values_args = CheckerValueSerialize().is_value_good_for_serialize(self.func_args)
+            result_kwargs, wrong_values_kwargs = CheckerValueSerialize().is_value_good_for_serialize(self.func_kwargs)
             result = result_args and result_kwargs
             wrong_values = wrong_values_args + wrong_values_kwargs
         if not result:
             logging.warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
-            logging.warning(f"Возможно востановить объекты модулей {CheckerAccessType.base_module} и {CheckerAccessType.lib_module}, а также конректных типов {CheckerAccessType.specific_type}")
+            logging.warning(f"Возможно востановить объекты модулей {BASE_MODULE} и {LIB_MODULE}, а также конректных типов {CheckerValueSerialize.specific_type}")
 
         return jsonpickle.dumps(self)
 

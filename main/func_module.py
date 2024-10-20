@@ -1,7 +1,8 @@
 import inspect
+import logging
 from typing import Callable
 
-from main.type_module import SerializedAnnotation
+from main.type_module import HandlerAnnotation
 from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
 
 
@@ -43,12 +44,24 @@ class FuncDataServer:
         if parameter.default != inspect.Parameter.empty:
             data["default"] = parameter.default
         if parameter.annotation != inspect.Parameter.empty:
-            data["annotation"] = SerializedAnnotation.serialize_annotation(parameter.annotation)
+            data["annotation"] = HandlerAnnotation.serialize_annotation(parameter.annotation)
         return data
 
     def _validate_func_data(self):
         worker_class = WorkerFactory.get_worker(self.worker_type)
         worker_class.check_ability_to_work_with_function(self)
+
+        invalid_annotations = []
+        for func_arg in self.func_args.values():
+            if func_arg.annotation != inspect.Parameter.empty:
+                invalid_annotations.extend(HandlerAnnotation.is_valid_annotation(func_arg.annotation))
+
+        for func_arg in self.func_kwargs.values():
+            if func_arg.annotation != inspect.Parameter.empty:
+                invalid_annotations.extend(HandlerAnnotation.is_valid_annotation(func_arg.annotation))
+
+        if invalid_annotations:
+            logging.warning(f"Функциия '{self.func_name}' имеет некоректные аннотации {invalid_annotations}")
 
     def __repr__(self):
         return f"FuncDataServer: func_name={self.func_name}, worker_type={self.worker_type}"

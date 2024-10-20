@@ -3,6 +3,8 @@ import datetime
 import multiprocessing
 import os
 import time
+import uuid
+from typing import Callable, Literal, Union, Optional
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +16,7 @@ from main.app_server import AppServer
 from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
 from main.func_module import FuncDataServer
 from main.task import Task
+from main.type_module import CheckerValueSerialize, HandlerAnnotation
 
 TEST_NAME_QUEUE = "test_queue"
 CONFIG_BROKER_REDIS = {
@@ -245,7 +248,8 @@ class TestAppServerRedisThread:
                 break
             time.sleep(0.5)
 
-    def test_max_number_worker(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis, set_env_client_data):
+    def test_max_number_worker(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis,
+                               set_env_client_data):
         task_ping = ping()
 
         tasks_id = []
@@ -301,3 +305,77 @@ class TestFuncData:
             assert is_raise_exception
         else:
             assert not is_raise_exception
+
+
+class TestCheckerValueSerialize:
+    @pytest.mark.parametrize(
+        "value, is_good_value",
+        [
+            (23, True),
+            ("str", True),
+            (False, True),
+            (None, True),
+            (23.5, True),
+            ([23, False], True),
+            (datetime.timedelta(23), True),
+            (datetime.datetime.now(), True),
+            (uuid.uuid4(), True),
+            (CheckerValueSerialize(), False),
+            (dict, True)
+        ]
+    )
+    def test_checker_value_serialize(self, value, is_good_value):
+        assert CheckerValueSerialize.is_value_good_for_serialize(value)[0] == is_good_value
+
+
+class TestHandlerAnnotation:
+    @pytest.mark.parametrize(
+        "annotation, is_valid_annotation",
+        [
+            (int, True),
+            (str, True),
+            (bool, True),
+            (type(None), True),
+            (None, True),
+            (float, True),
+            (list, True),
+            (list[int], True),
+            (list[Callable], True),
+            (list[(...)], True),
+            (Literal["value1", "value2"], True),
+            (int | float | None, True),
+            (Union[int, float], True),
+            (Optional[int], True),
+            (datetime.datetime, True),
+            (datetime.timedelta, True),
+            (uuid.UUID, True),
+            (list[int, HandlerAnnotation], False)
+        ]
+    )
+    def test_is_valid_annotation(self, annotation, is_valid_annotation):
+        assert (len(HandlerAnnotation.is_valid_annotation(annotation)) == 0) == is_valid_annotation
+
+    @pytest.mark.parametrize(
+        "annotation, annotation_serialized",
+        [
+            (int, "int"),
+            (str, "str"),
+            (bool, "bool"),
+            (None, "None"),
+            (float, "float"),
+            (list, "list"),
+            (list[int], "list[int]"),
+            (list[Callable], "list[Callable]"),
+            (list[()], "list[()]"),
+            ((), "()"),
+            (Literal["value1", "value2"], "Literal['value1', 'value2']"),
+            (int | float | None, "int | float | None"),
+            (Union[int, float], "Union[int, float]"),
+            (Optional[int], "Optional[int]"),
+            (datetime.datetime, "datetime"),
+            (datetime.timedelta, "timedelta"),
+            (uuid.UUID, "UUID"),
+        ]
+    )
+    def test_serialize(self, annotation, annotation_serialized):
+        assert HandlerAnnotation.serialize_annotation(annotation) == annotation_serialized

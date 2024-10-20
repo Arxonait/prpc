@@ -7,8 +7,11 @@ from main.func_module import FuncDataClient
 
 class ServerFuncPy:
     _FILE_NAME = "server_func.py"
-    _based_import_lines = [
+    _based_import_lines = [  # todo remove hardcode
         "from main.app_client import AwaitableTask",
+        "from datetime import datetime, timedelta",
+        "from uuid import UUID",
+        "from typing import *"
     ]
     _TIMEOUT = datetime.timedelta(seconds=30)
 

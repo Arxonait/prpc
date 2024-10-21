@@ -18,16 +18,16 @@ def ping():
 
 
 class ClientBroker:
-    __instance = None
+    _instance = None
 
     @classmethod
     def get_instance(cls):
-        if cls.__instance is None:
+        if cls._instance is None:
             ClientBroker()
-        return cls.__instance
+        return cls._instance
 
     def __init__(self):
-        if self.__instance is not None:
+        if self._instance is not None:
             raise Exception("singleton cannot be instantiated more then once")
         ClientBroker.__instance = self
 
@@ -59,10 +59,10 @@ class ClientBroker:
 
 
 class AwaitableTask:
-    __client_broker: ClientBroker | None = None
+    _client_broker: ClientBroker | None = None
 
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
-        if self.__client_broker is None:
+        if self._client_broker is None:
             self.__client_broker = ClientBroker()
         self._task: Task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
         self._start_task()

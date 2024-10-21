@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Literal
 
 import redis
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from main.task import Task
 
@@ -190,6 +191,55 @@ class ServerQueueRedis(AbstractQueueRedis, AbstractQueueServer):
             await self.client.rpush(self._pattern_queue(), *results)
 
         return results
+
+
+class AbstractQueueKafka(AbstractQueue, ABC):
+    def _pattern_queue_feedback(self):
+        return f"prpc_feedback_{self._queue_name}"
+
+    def _pattern_queue(self):
+        return f"prpc_{self._queue_name}"
+
+    def _pattern_queue_feedback_task_id(self, task_id):
+        raise NotImplementedError # todo
+
+
+class ServerQueueKafka(AbstractQueueKafka, AbstractQueueServer):
+
+    def __init__(self, config_broker, queue_name):
+        super().__init__(config_broker, queue_name)
+        self.consumer = AIOKafkaConsumer(
+            self._pattern_queue(),
+            bootstrap_servers=self.config_broker,
+            group_id="prpc_group",
+            auto_offset_reset='earliest'
+        )
+        self.producer = AIOKafkaProducer(bootstrap_servers=self.config_broker)
+
+    async def init(self):
+        await self._create_client()
+        await self._create_queues()
+
+    async def _create_client(self):
+        await self.consumer.start()
+        await self.producer.start()
+
+    async def _create_queues(self):
+        pass
+
+    async def get_next_task_from_queue(self):
+        try:
+            msg = await self.consumer.getone()
+            task = Task.deserialize(msg.value)
+            return task
+        finally:
+            await self.consumer.stop()
+
+    async def add_task_in_feedback_queue(self, task: Task):
+        await self.producer.send_and_wait(self._pattern_queue_feedback(), task.serialize().encode())
+
+    async def _restoring_processing_tasks(self) -> list[bytes]:
+        pass
 
 
 class QueueFactory:

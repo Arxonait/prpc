@@ -251,6 +251,7 @@ class TestAppServerRedisThread:
     def test_max_number_worker(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis,
                                set_env_client_data):
         task_ping = ping()
+        task_ping.sync_wait_result_task(datetime.timedelta(seconds=10))
 
         tasks_id = []
         for _ in range(6):
@@ -258,7 +259,6 @@ class TestAppServerRedisThread:
             client_queue_redis.add_task_in_queue(task)
             tasks_id.append(task.task_id)
 
-        task_ping.sync_wait_result_task(datetime.timedelta(seconds=10))
         assert 6 - 2 == client_redis.llen("prpc:" + TEST_NAME_QUEUE)
         assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[0]}")
         assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[1]}")

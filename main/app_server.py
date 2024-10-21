@@ -6,9 +6,7 @@ from multiprocessing import freeze_support
 from typing import Literal
 
 from main.brokers_module import QueueFactory, AbstractQueueServer
-from main.exceptions import NotFoundFunc
 from main.func_module import FuncDataServer
-from main.task import Task
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
 
@@ -54,11 +52,12 @@ class AppServer:
         self.register_func(ping, WorkerType.THREAD.value)
 
         self.default_type_worker = default_type_worker
-        self.worker_manager = WorkerManager(max_number_worker, timeout_worker)
 
         queue_class: AbstractQueueServer = QueueFactory.get_queue_class_server(type_broker)
         self.queue: AbstractQueueServer = queue_class(config_broker, name_queue, expire_task_feedback,
                                                       expire_task_process)
+
+        self.workers = [WorkerManager(self.queue, self._func_data, timeout_worker) for _ in range(max_number_worker)]
 
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
@@ -89,62 +88,11 @@ class AppServer:
     def func_data(self):
         return self._func_data
 
-    def __get_func_data(self, task: Task) -> FuncDataServer:
-        for func_data in self._func_data:
-            if task.func_name == func_data.func_name:
-                return func_data
-        raise NotFoundFunc(task.func_name)
-
     def _is_registered_func(self, func):
         for func_data in self._func_data:
             if func_data.func_name == func.__name__:
                 return True
         return False
-
-    async def _handler_task_with_exception(self, task: Task):
-        assert task.exception_info is not None, "Только для задач с инофрмацией об ошибке"
-        logging.warning(f"Задача {task} не выполнилась по причине {task.exception_info}")
-        logging.debug(
-            f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-        await self.queue.add_task_in_feedback_queue(task)
-
-    async def _task_get_new_task_from_queue(self):
-        while True:
-            if not self.worker_manager.check_possibility_add_new_worker():
-                logging.debug(
-                    f"Все воркеры заняты. Макс воркеров {self.worker_manager.max_number_worker} --- Текущие воркеры {self.worker_manager.get_count_current_workers()}")
-                await asyncio.wait(self.worker_manager.get_future_current_workers(),
-                                   return_when=asyncio.FIRST_COMPLETED)
-                self.worker_manager.update_data_about_workers()
-
-            logging.debug(f"Ожидание новой задачи")
-            logging.debug(
-                f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-            task = await self.queue.get_next_task_from_queue()
-            logging.info(f"Получена новая задача {task}")
-
-            try:
-                func_data = self.__get_func_data(task)
-            except NotFoundFunc as e:
-                task.task_to_done(exception_info=str(e))
-                await self._handler_task_with_exception(task)
-            else:
-                self.worker_manager.add_new_worker(task, func_data.func, func_data.worker_type)
-
-    async def _task_update_data_about_worker(self):
-        while True:
-            self.worker_manager.update_data_about_workers()
-
-            for end_worker in self.worker_manager.end_workers:
-                task_done = end_worker.get_task()
-                logging.info(f"Задача {task_done} выполнилась")
-                logging.debug(
-                    f"Свободные воркеры {self.worker_manager.max_number_worker - self.worker_manager.get_count_current_workers()}")
-                await self.queue.add_task_in_feedback_queue(task_done)
-            else:
-                self.worker_manager.clear_end_workers()
-
-            await asyncio.sleep(1)
 
     async def __start(self):
         freeze_support()
@@ -152,10 +100,11 @@ class AppServer:
 
         await self.queue.init()
 
-        task_queue = asyncio.create_task(self._task_get_new_task_from_queue())
-        task_update = asyncio.create_task(self._task_update_data_about_worker())
+        tasks = []
+        for worker in self.workers:
+            tasks.append(asyncio.create_task(worker.start()))
 
-        await asyncio.wait([task_queue, task_update])
+        await asyncio.wait(tasks)
 
     def start(self):
         asyncio.run(self.__start())

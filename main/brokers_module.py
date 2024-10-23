@@ -9,8 +9,12 @@ from typing import Literal
 
 import redis
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from kafka import KafkaProducer, KafkaConsumer
 
 from main.task import Task
+
+
+BROKER_ANNOTATION = Literal["redis", "kafka"]
 
 
 class AbstractQueue(ABC):
@@ -32,10 +36,6 @@ class AbstractQueue(ABC):
 
     @abstractmethod
     def _pattern_queue(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _pattern_queue_feedback_task_id(self, task_id):
         raise NotImplementedError
 
 
@@ -200,9 +200,6 @@ class AbstractQueueKafka(AbstractQueue, ABC):
     def _pattern_queue(self):
         return f"prpc_{self._queue_name}"
 
-    def _pattern_queue_feedback_task_id(self, task_id):
-        raise NotImplementedError # todo
-
 
 class ServerQueueKafka(AbstractQueueKafka, AbstractQueueServer):
 
@@ -211,7 +208,7 @@ class ServerQueueKafka(AbstractQueueKafka, AbstractQueueServer):
         self.consumer = AIOKafkaConsumer(
             self._pattern_queue(),
             bootstrap_servers=self.config_broker,
-            group_id="prpc_group",
+            group_id="prpc_group", # todo expire
             auto_offset_reset='earliest'
         )
         self.producer = AIOKafkaProducer(bootstrap_servers=self.config_broker)
@@ -236,15 +233,57 @@ class ServerQueueKafka(AbstractQueueKafka, AbstractQueueServer):
             await self.consumer.stop()
 
     async def add_task_in_feedback_queue(self, task: Task):
+        # todo update offset
         await self.producer.send_and_wait(self._pattern_queue_feedback(), task.serialize().encode())
 
     async def _restoring_processing_tasks(self) -> list[bytes]:
         pass
 
 
+class ClientQueueKafkaSync(AbstractQueueClient, AbstractQueueKafka):
+
+    def __init__(self, config_broker, queue_name):
+        super().__init__(config_broker, queue_name)
+        self.consumer = KafkaConsumer(
+            self._pattern_queue_feedback()
+
+        )
+        self.consumer.offsets_for_times()
+        self.consumer.seek()
+        self.consumer = AIOKafkaConsumer(
+            self._pattern_queue_feedback(),
+            bootstrap_servers=self.config_broker,
+            group_id="prpc_group", # убрать ли
+            auto_offset_reset='earliest' # что это
+        )
+        self.producer = AIOKafkaProducer(bootstrap_servers=self.config_broker)
+
+    def init(self):
+        self._create_client()
+
+    def _create_client(self):
+        if isinstance(self.config_broker, str):
+            self.client = redis.from_url(self.config_broker)
+        else:
+            self.client = redis.Redis(host=self.config_broker["host"], port=self.config_broker["port"],
+                                      db=self.config_broker["db"])
+
+    def add_task_in_queue(self, task: Task):
+        self.client.lpush(self._pattern_queue(), task.serialize())
+
+    def search_task_in_feedback(self, task_id: uuid.UUID):
+        result = self.client.get(self._pattern_queue_feedback_task_id(task_id))
+        self.client.delete(self._pattern_queue_feedback_task_id(task_id))
+        if result is None:
+            return
+
+        return Task.deserialize(result)
+
+
 class QueueFactory:
     server_queue: dict[str, AbstractQueueServer] = {
         'redis': ServerQueueRedis,
+        'kafka': ServerQueueKafka
     }
 
     sync_client_queue: dict[str, AbstractQueueClient] = {
@@ -256,7 +295,7 @@ class QueueFactory:
     # }
 
     @classmethod
-    def get_queue_class_server(cls, type_broker: Literal["redis"]) -> AbstractQueueServer:
+    def get_queue_class_server(cls, type_broker) -> AbstractQueueServer:
         queue_class = cls.server_queue.get(type_broker)
 
         if queue_class is None:

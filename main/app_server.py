@@ -5,7 +5,11 @@ from functools import wraps
 from multiprocessing import freeze_support
 from typing import Literal
 
-from main.brokers_module import QueueFactory, AbstractQueueServer
+import kafka
+from kafka.admin import NewTopic
+
+from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
+from main.brokers import ServerBroker
 from main.func_module import FuncDataServer
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
@@ -32,15 +36,13 @@ class AppServer:
         return cls.__instance
 
     def __init__(self,
-                 type_broker: Literal["redis"],
+                 type_broker: BROKER_ANNOTATION,
                  config_broker: dict | str,
                  default_type_worker: WORKER_TYPE_ANNOTATE = "thread",
                  max_number_worker: int = 4,
                  timeout_worker: datetime.timedelta | None = None,
 
-                 name_queue="task_prpc",
-                 expire_task_feedback=datetime.timedelta(hours=2),
-                 expire_task_process=datetime.timedelta(hours=2)):
+                 name_queue="task_prpc"):
 
         if self.__instance is not None:
             raise Exception("singleton cannot be instantiated more then once ")
@@ -52,12 +54,14 @@ class AppServer:
         self.register_func(ping, WorkerType.THREAD.value)
 
         self.default_type_worker = default_type_worker
+        self.max_number_worker = max_number_worker
 
-        queue_class: AbstractQueueServer = QueueFactory.get_queue_class_server(type_broker)
-        self.queue: AbstractQueueServer = queue_class(config_broker, name_queue, expire_task_feedback,
-                                                      expire_task_process)
+        self.queue_class: ServerBroker = BrokerFactory.get_broker_class_server(type_broker)
 
-        self.workers = [WorkerManager(self.queue, self._func_data, timeout_worker) for _ in range(max_number_worker)]
+        self.workers = []
+        for _ in range(max_number_worker):
+            queue = self.queue_class(config_broker, name_queue)
+            self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
 
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
@@ -97,8 +101,7 @@ class AppServer:
     async def __start(self):
         freeze_support()
         logging.info("Старт сервера")
-
-        await self.queue.init()
+        await self.workers[0].queue.create_queues(self.max_number_worker) # todo remove кастыль
 
         tasks = []
         for worker in self.workers:

@@ -11,9 +11,9 @@ import pytest
 import pytest_asyncio
 import redis
 
-from main.app_client import ping, ClientBroker
+from main.app_client import ping
 from main.app_server import AppServer
-from main.brokers_module import ServerQueueRedis, ClientQueueRedisSync
+from main.brokers.redis import RedisClientBroker, RedisServerBroker
 from main.func_module import FuncDataServer
 from main.task import Task
 from main.type_module import CheckerValueSerialize, HandlerAnnotation
@@ -52,17 +52,14 @@ async def create_task_in_queue_redis(client_queue_redis):
 
 @pytest_asyncio.fixture(loop_scope="class")
 async def server_queue_redis(client_redis):
-    client_redis.delete("prpc:" + TEST_NAME_QUEUE)
-    queue = ServerQueueRedis(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+    queue = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
     await queue.init()
     return queue
 
 
 @pytest.fixture(scope="class")
 def client_queue_redis(client_redis):
-    client_redis.delete("prpc:" + TEST_NAME_QUEUE)
-    queue = ClientQueueRedisSync(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
-    queue.init()
+    queue = RedisClientBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
     return queue
 
 
@@ -145,65 +142,64 @@ class TestRedisBroker:
 
         client_queue_redis.add_task_in_queue(task)
 
-        task_data = client_redis.lpop("prpc:" + TEST_NAME_QUEUE)
+        task_data = client_redis.lpop(client_queue_redis.get_queue_name())
         saved_task = Task.deserialize(task_data)
 
         assert task.task_id == saved_task.task_id
 
     async def test_get_task_from_queue(self, server_queue_redis, client_redis, create_task_in_queue_redis, clear_redis):
-        created_task = create_task_in_queue_redis
-        task = await server_queue_redis.get_next_task_from_queue()
+        created_task: Task = create_task_in_queue_redis
+        server_queue_redis: RedisServerBroker = server_queue_redis
+        task: Task = await server_queue_redis.get_next_task_from_queue()
 
-        assert client_redis.llen("prpc:" + TEST_NAME_QUEUE) == 0
+        assert client_redis.llen(server_queue_redis.get_queue_name()) == 0
 
         assert isinstance(task, Task)
         assert created_task.task_id == task.task_id
 
-        task_data = client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
+        task_data = client_redis.get(server_queue_redis.get_queue_process_name_task_id(task.task_id))
         task_processing = Task.deserialize(task_data)
 
         assert task_processing.task_id == created_task.task_id
 
-    async def test_save_task_in_feedback(self, server_queue_redis, client_redis, create_task_in_queue_redis):
-        created_task = create_task_in_queue_redis
+    async def test_save_task_in_feedback(self, server_queue_redis, client_redis, create_task_in_queue_redis, clear_redis):
+        created_task: Task = create_task_in_queue_redis
+        server_queue_redis: RedisServerBroker = server_queue_redis
         task = await server_queue_redis.get_next_task_from_queue()
 
         await server_queue_redis.add_task_in_feedback_queue(task)
 
-        task_data = client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{task.task_id}")
+        task_data = client_redis.get(server_queue_redis.get_queue_process_name_task_id(task.task_id))
         assert task_data is None
 
-        task_data = client_redis.get(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
-        client_redis.delete(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
-        task_processing = Task.deserialize(task_data)
-        assert task_processing.task_id == created_task.task_id
+        task_data = client_redis.get(server_queue_redis.get_queue_feedback_name_task_id(task.task_id))
+        task_feedback = Task.deserialize(task_data)
+        assert task_feedback.task_id == created_task.task_id
 
     async def test_search_task_in_feedback(self, server_queue_redis, client_queue_redis, client_redis,
                                            create_task_in_queue_redis):
-        created_task = create_task_in_queue_redis
+        created_task: Task = create_task_in_queue_redis
+        server_queue_redis: RedisServerBroker = server_queue_redis
         task = await server_queue_redis.get_next_task_from_queue()
 
         await server_queue_redis.add_task_in_feedback_queue(task)
 
-        task = client_queue_redis.search_task_in_feedback(task.task_id)
+        task = client_queue_redis.search_task_in_feedback(task)
 
-        task_data = client_redis.get(f"prpc:feedback:{TEST_NAME_QUEUE}:{task.task_id}")
+        task_data = client_redis.get(server_queue_redis.get_queue_feedback_name_task_id(task.task_id))
         assert task_data is None
 
         assert task.task_id == created_task.task_id
 
-    async def test_restore_tasks(self, client_queue_redis, clear_redis, client_redis):
-        task = Task(func_name="test_func", func_args=[], func_kwargs={})
-        client_queue_redis.add_task_in_queue(task)
-
-        queue = ServerQueueRedis(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+    async def test_restore_tasks(self, create_task_in_queue_redis, clear_redis, client_redis):
+        queue = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
         await queue.init()
         await queue.get_next_task_from_queue()
         del queue
-        queue = ServerQueueRedis(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+        queue = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
         await queue.init()
 
-        assert client_redis.llen("prpc:" + TEST_NAME_QUEUE) == 1
+        assert client_redis.llen(queue.get_queue_name()) == 1
 
 
 class TestAppServerRedisThread:
@@ -221,7 +217,7 @@ class TestAppServerRedisThread:
 
         client_queue_redis.add_task_in_queue(task)
         while True:
-            task_result = client_queue_redis.search_task_in_feedback(task.task_id)
+            task_result = client_queue_redis.search_task_in_feedback(task)
             if task_result:
                 assert task_result.result == expected
                 break
@@ -241,7 +237,7 @@ class TestAppServerRedisThread:
 
         client_queue_redis.add_task_in_queue(task)
         while True:
-            task_result = client_queue_redis.search_task_in_feedback(task.task_id)
+            task_result = client_queue_redis.search_task_in_feedback(task)
             if task_result:
                 assert task_result.result is None
                 assert task_result.exception_info is not None
@@ -259,10 +255,10 @@ class TestAppServerRedisThread:
             client_queue_redis.add_task_in_queue(task)
             tasks_id.append(task.task_id)
 
-        assert 6 - 2 == client_redis.llen("prpc:" + TEST_NAME_QUEUE)
-        assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[0]}")
-        assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[1]}")
-        assert client_redis.get(f"prpc:in_process:{TEST_NAME_QUEUE}:{tasks_id[2]}") is None
+        assert 6 - 2 == client_redis.llen("prpc_" + TEST_NAME_QUEUE)
+        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1]))
+        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1]))
+        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1])) is None
 
     def test_done_all_task(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis):
         tasks_id = []
@@ -274,7 +270,7 @@ class TestAppServerRedisThread:
 
         start_wait = datetime.datetime.now()
         while True:
-            keys = client_redis.keys(f"prpc:feedback:{TEST_NAME_QUEUE}:*")
+            keys = client_redis.keys(f"prpc_feedback_{TEST_NAME_QUEUE}*")
             if len(keys) == len(seconds):
                 break
             if datetime.datetime.now() - start_wait > datetime.timedelta(seconds=sum(seconds) + len(seconds) * 2):

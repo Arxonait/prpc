@@ -8,7 +8,7 @@ from enum import Enum
 from functools import partial
 from typing import Literal, Callable
 
-from main.brokers_module import AbstractQueueServer
+from main.brokers import ServerBroker
 from main.exceptions import NotFoundFunc
 from main.task import Task
 
@@ -166,7 +166,7 @@ class WorkerFactory:
 
 
 class WorkerManager:
-    def __init__(self, queue: AbstractQueueServer,
+    def __init__(self, queue: ServerBroker,
                  func_data: list,
                  timeout_worker: timedelta | None = None):
 
@@ -176,6 +176,7 @@ class WorkerManager:
         self.current_worker: Worker | None = None
 
     async def start(self):
+        await self.queue.init()
         while True:
             task = await self.queue.get_next_task_from_queue()
             logging.info(f"Получена новая задача {task}")

@@ -5,8 +5,9 @@ import time
 import os
 from dotenv import load_dotenv
 
-from main.brokers_module import QueueFactory, AbstractQueueClient
+from main.brokers.brokers_factory import BrokerFactory
 from main.task import Task
+from main.brokers import ClientBroker
 
 
 def get_function_server():
@@ -17,24 +18,23 @@ def ping():
     return AwaitableTask('ping', (), {})
 
 
-class ClientBroker:
+class ManagerClientBroker:
     _instance = None
 
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
-            ClientBroker()
+            ManagerClientBroker()
         return cls._instance
 
     def __init__(self):
         if self._instance is not None:
             raise Exception("singleton cannot be instantiated more then once")
-        ClientBroker.__instance = self
+        ManagerClientBroker.__instance = self
 
         type_broker, config_broker, queue_name = self._get_init_data()
-        queue_class = QueueFactory().get_queue_class_sync_client(type_broker)
-        self.queue: AbstractQueueClient = queue_class(config_broker, queue_name)
-        self.queue.init()
+        queue_class = BrokerFactory().get_broker_class_sync_client(type_broker)
+        self.queue: ClientBroker = queue_class(config_broker, queue_name) # todo при нескольких ожиданий задач (в потоках, в процесах) возможны ошибки
 
     def _get_init_data(self):
 
@@ -59,11 +59,11 @@ class ClientBroker:
 
 
 class AwaitableTask:
-    _client_broker: ClientBroker | None = None
+    _client_broker: ManagerClientBroker | None = None
 
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
         if self._client_broker is None:
-            self.__client_broker = ClientBroker()
+            self.__client_broker = ManagerClientBroker()
         self._task: Task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
         self._start_task()
 
@@ -74,7 +74,7 @@ class AwaitableTask:
         if self._task.is_task_done():
             return True
 
-        task_done = self.__client_broker.queue.search_task_in_feedback(task_id=self.get_task_id())
+        task_done = self.__client_broker.queue.search_task_in_feedback(self._task)
         if task_done is None:
             return False
 
@@ -121,6 +121,3 @@ class AwaitableTask:
             return None
 
         return self._task.date_done_task - self._task.date_create_task
-
-    def get_task_id(self):
-        return self._task.task_id

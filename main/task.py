@@ -53,9 +53,9 @@ class Task:
 
     @classmethod
     def deserialize(cls, serialize_task):
-        logging.debug(f"Началась сериализация данных {serialize_task}")
+        # logging.debug(f"Началась сериализация данных {serialize_task}")
         task = jsonpickle.loads(serialize_task)
-        logging.debug(f"Закончилась сериализация данных")
+        # logging.debug(f"Закончилась сериализация данных")
         return task
 
     def __str__(self):

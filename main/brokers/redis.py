@@ -4,13 +4,10 @@ from abc import ABC, abstractmethod
 
 import redis
 
+from main import loggs
 from main.brokers import ServerBroker, ClientBroker, AbstractBroker, AdminBroker
+from main.settings_server import Settings
 from main.task import Task
-
-_REDIS_CONFIG = {
-    "expire_task_feedback": datetime.timedelta(hours=6),
-    "expire_task_process": datetime.timedelta(days=5)
-} # todo parse env
 
 
 class AbstractRedisBroker(AbstractBroker, ABC):
@@ -46,7 +43,7 @@ class RedisAdminBroker(AdminBroker, AbstractRedisBroker):
         await self._create_client()
         await self.create_queues()
         restore_tasks = await self._restoring_processing_tasks()
-        logging.info(f"Redis: востановлены незавершенные задачи. Кол-во задач {len(restore_tasks)}")
+        loggs.get_logger().info(f"Redis: востановлены незавершенные задачи. Кол-во задач {len(restore_tasks)}")
 
     async def create_queues(self, *args, **kwargs):
         return
@@ -70,8 +67,8 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._expire_task_feedback: datetime.timedelta = _REDIS_CONFIG["expire_task_feedback"]
-        self._expire_task_process: datetime.timedelta = _REDIS_CONFIG["expire_task_process"]
+        self._expire_task_feedback: datetime.timedelta = Settings.redis_expire_task_feedback()
+        self._expire_task_process: datetime.timedelta = Settings.redis_expire_task_process()
 
     async def init(self):
         await self._create_client()

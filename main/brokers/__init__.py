@@ -19,6 +19,11 @@ class AbstractBroker(ABC):
 
 
 class AdminBroker(AbstractBroker):
+
+    @abstractmethod
+    async def init(self, *args, **kwargs):
+        raise NotImplementedError
+
     @abstractmethod
     async def create_queues(self, *args, **kwargs):
         raise NotImplementedError

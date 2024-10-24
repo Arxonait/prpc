@@ -121,7 +121,7 @@ class AppServer:
 
     async def __start(self):
         get_logger().info("Старт сервера")
-        await self._admin_broker.create_queues(**self._data_for_create_queues)
+        await self._admin_broker.init(**self._data_for_create_queues)
 
         tasks = []
         for worker in self.workers:

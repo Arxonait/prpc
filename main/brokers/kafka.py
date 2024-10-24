@@ -41,7 +41,10 @@ class ManagerCashKafkaClientBroker:
 
 
 class KafkaAdminBroker(AdminBroker):
-    async def create_queues(self, number_of_partitions_main_topic: int, number_of_workers: int, *args, **kwargs):
+    async def init(self, number_of_partitions_main_topic: int, number_of_workers: int, *args, **kwargs):
+        await self.create_queues(number_of_partitions_main_topic, number_of_workers)
+
+    async def create_queues(self, number_of_partitions_main_topic: int, number_of_workers: int):
         assert number_of_partitions_main_topic is not None or number_of_workers is not None
         if number_of_partitions_main_topic is None:
             number_of_partitions_main_topic = number_of_workers + 2

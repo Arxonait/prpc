@@ -13,17 +13,13 @@ import redis
 
 from main.app_client import ping
 from main.app_server import AppServer
-from main.brokers.redis import RedisClientBroker, RedisServerBroker
+from main.brokers.redis import RedisClientBroker, RedisServerBroker,RedisAdminBroker
 from main.func_module import FuncDataServer
 from main.task import Task
 from main.type_module import CheckerValueSerialize, HandlerAnnotation
 
 TEST_NAME_QUEUE = "test_queue"
-CONFIG_BROKER_REDIS = {
-    "host": "localhost",
-    "port": 6379,
-    "db": 0
-}
+CONFIG_BROKER_REDIS = "redis://localhost:6379/0"
 
 
 @pytest.fixture()
@@ -65,7 +61,7 @@ def client_queue_redis(client_redis):
 
 @pytest.fixture(scope="class")
 def client_redis():
-    client = redis.Redis(**CONFIG_BROKER_REDIS)
+    client = redis.from_url(CONFIG_BROKER_REDIS)
     return client
 
 
@@ -191,14 +187,19 @@ class TestRedisBroker:
         assert task.task_id == created_task.task_id
 
     async def test_restore_tasks(self, create_task_in_queue_redis, clear_redis, client_redis):
+        admin = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+        await admin.init()
+        del admin
+
         queue = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
         await queue.init()
         await queue.get_next_task_from_queue()
         del queue
-        queue = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
-        await queue.init()
 
-        assert client_redis.llen(queue.get_queue_name()) == 1
+        admin = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+        await admin.init()
+
+        assert client_redis.llen(admin.get_queue_name()) == 1
 
 
 class TestAppServerRedisThread:
@@ -255,9 +256,9 @@ class TestAppServerRedisThread:
             tasks_id.append(task.task_id)
 
         assert 6 - 2 == client_redis.llen("prpc_" + TEST_NAME_QUEUE)
+        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[0]))
         assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1]))
-        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1]))
-        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1])) is None
+        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[2])) is None
 
     def test_done_all_task(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis):
         tasks_id = []

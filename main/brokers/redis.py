@@ -37,9 +37,32 @@ class AbstractRedisBroker(AbstractBroker, ABC):
         raise NotImplementedError
 
 
-class RedisAdminBroker(AdminBroker):
+class RedisAdminBroker(AdminBroker, AbstractRedisBroker):
+
+    async def _create_client(self):
+        self._client = await redis.asyncio.from_url(self.broker_url)
+
+    async def init(self, *args, **kwargs):
+        await self._create_client()
+        await self.create_queues()
+        restore_tasks = await self._restoring_processing_tasks()
+        logging.info(f"Redis: востановлены незавершенные задачи. Кол-во задач {len(restore_tasks)}")
+
     async def create_queues(self, *args, **kwargs):
         return
+
+    async def _restoring_processing_tasks(self) -> list[bytes]:
+        keys = await self._get_client().keys(f"{self.get_queue_process_name()}*")
+        results = []
+        for key in keys:
+            result = await self._get_client().get(key)
+            await self._get_client().delete(key)
+            results.append(result)
+
+        if results:
+            await self._get_client().rpush(self.get_queue_name(), *results)
+
+        return results
 
 
 class RedisServerBroker(AbstractRedisBroker, ServerBroker):
@@ -52,8 +75,6 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
 
     async def init(self):
         await self._create_client()
-        restore_tasks = await self._restoring_processing_tasks()
-        logging.debug(f"Востановлены незавершенные (process) задачи. кол-во задач {len(restore_tasks)}")
 
     async def _create_client(self):
         self._client = await redis.asyncio.from_url(self.broker_url)
@@ -76,19 +97,6 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
 
     async def _delete_task_in_process(self, task: Task):
         await self._get_client().delete(self.get_queue_process_name_task_id(task.task_id))
-
-    async def _restoring_processing_tasks(self) -> list[bytes]:
-        keys = await self._get_client().keys(f"{self.get_queue_process_name()}*")
-        results = []
-        for key in keys:
-            result = await self._get_client().get(key)
-            await self._get_client().delete(key)
-            results.append(result)
-
-        if results:
-            await self._get_client().rpush(self.get_queue_name(), *results)
-
-        return results
 
 
 class RedisClientBroker(AbstractRedisBroker, ClientBroker):

@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 from functools import wraps
+from typing import get_args
 
 import pydantic
 
@@ -88,7 +89,6 @@ class AppServer:
         return worker_type if worker_type else self.default_type_worker
 
     def decorator_reg_func(self, worker_type: WORKER_TYPE_ANNOTATE | None = None):
-        # todo validete
         def decorator(func):
 
             @wraps(func)
@@ -105,8 +105,11 @@ class AppServer:
         return decorator
 
     def register_func(self, func, worker_type: WORKER_TYPE_ANNOTATE | None = None):
+        assert isinstance(worker_type, str | None), f"worker_type must be str or None"
         if not self._is_registered_func(func):
             worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
+            assert worker_type in get_args(WORKER_TYPE_ANNOTATE), f"worker_type must be {get_args(WORKER_TYPE_ANNOTATE)}"
+
             self._func_data.append(FuncDataServer(func, worker_type))
             get_logger().info(f"Функция {func.__name__} зарегистрирована")
 

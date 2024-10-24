@@ -1,13 +1,12 @@
 import asyncio
 import datetime
-import logging
 from functools import wraps
 from multiprocessing import freeze_support
 
 import pydantic
 
 from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
-from main.brokers import ServerBroker
+from main.brokers import ServerBroker, AdminBroker
 from main.func_module import FuncDataServer
 from main.loggs import get_logger
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
@@ -32,6 +31,7 @@ class InputDataAppServer(pydantic.BaseModel):
     max_number_worker: int = pydantic.Field(ge=1, le=16)
     timeout_worker: datetime.timedelta | None
     name_queue: str
+    kafka_number_of_partitions_main_topic: int | None
 
 
 class AppServer:
@@ -51,7 +51,9 @@ class AppServer:
                  max_number_worker: int = 4,
                  timeout_worker: datetime.timedelta | None = None,
 
-                 name_queue="task_prpc"):
+                 name_queue="task_prpc",
+                 *args,
+                 kafka_number_of_partitions_main_topic: int | None = None):
 
         if self.__instance is not None:
             raise Exception("singleton cannot be instantiated more then once ")
@@ -60,21 +62,28 @@ class AppServer:
 
         InputDataAppServer(type_broker=type_broker, config_broker=config_broker,
                            default_type_worker=default_type_worker, max_number_worker=max_number_worker,
-                           timeout_worker=timeout_worker, name_queue=name_queue)
+                           timeout_worker=timeout_worker, name_queue=name_queue,
+                           kafka_number_of_partitions_main_topic=kafka_number_of_partitions_main_topic)
 
         self._func_data: list[FuncDataServer] = []
         self.register_func(get_function_server, WorkerType.THREAD.value)
         self.register_func(ping, WorkerType.THREAD.value)
 
         self.default_type_worker = default_type_worker
-        self.max_number_worker = max_number_worker
 
-        self.queue_class: ServerBroker = BrokerFactory.get_broker_class_server(type_broker)
+        queue_class: ServerBroker = BrokerFactory.get_broker_class_server(type_broker)
+        class_admin_broker = BrokerFactory.get_broker_class_admin(type_broker)
+        self._admin_broker: AdminBroker = class_admin_broker(config_broker, name_queue)
 
         self.workers = []
         for _ in range(max_number_worker):
-            queue = self.queue_class(config_broker, name_queue)
+            queue = queue_class(config_broker, name_queue)
             self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
+
+        self._data_for_create_queues = {
+            "number_of_partitions_main_topic": kafka_number_of_partitions_main_topic,
+            "number_of_workers": len(self.workers)
+        }
 
     def _get_default_worker_type_or_target_worker_type(self, worker_type):
         return worker_type if worker_type else self.default_type_worker
@@ -112,9 +121,9 @@ class AppServer:
         return False
 
     async def __start(self):
-        freeze_support()
+        freeze_support() # todo
         get_logger().info("Старт сервера")
-        await self.workers[0].queue.create_queues(self.max_number_worker) # todo remove кастыль
+        await self._admin_broker.create_queues(**self._data_for_create_queues)
 
         tasks = []
         for worker in self.workers:

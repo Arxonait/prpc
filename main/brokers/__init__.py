@@ -18,15 +18,16 @@ class AbstractBroker(ABC):
         return f"{self._prefix_name_queue_feedback}_{self.queue_name}"
 
 
+class AdminBroker(AbstractBroker):
+    @abstractmethod
+    async def create_queues(self, *args, **kwargs):
+        raise NotImplementedError
+
+
 class ServerBroker(AbstractBroker):
 
     @abstractmethod
     async def init(self):
-        raise NotImplementedError
-
-    @classmethod
-    @abstractmethod
-    async def create_queues(cls, number_of_workers: int):
         raise NotImplementedError
 
     @abstractmethod

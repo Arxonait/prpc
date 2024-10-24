@@ -1,8 +1,8 @@
 from typing import Literal
 
-from main.brokers import ServerBroker, ClientBroker
-from main.brokers.kafka import KafkaServerBroker, KafkaClientBroker
-from main.brokers.redis import RedisServerBroker, RedisClientBroker
+from main.brokers import ServerBroker, ClientBroker, AdminBroker
+from main.brokers.kafka import KafkaServerBroker, KafkaClientBroker, KafkaAdminBroker
+from main.brokers.redis import RedisServerBroker, RedisClientBroker, RedisAdminBroker
 
 BROKER_ANNOTATION = Literal["redis", "kafka"]
 
@@ -16,6 +16,11 @@ class BrokerFactory:
     sync_client_queue: dict[str, ClientBroker] = {
         'redis': RedisClientBroker,
         'kafka': KafkaClientBroker,
+    }
+
+    admin_broker: dict[BROKER_ANNOTATION, AdminBroker] = {
+        "redis": RedisAdminBroker,
+        "kafka": KafkaAdminBroker
     }
 
     @classmethod
@@ -33,5 +38,14 @@ class BrokerFactory:
 
         if queue_class is None:
             raise Exception(f"only this broker: {cls.sync_client_queue.keys()}")
+
+        return queue_class
+
+    @classmethod
+    def get_broker_class_admin(cls, type_broker: BROKER_ANNOTATION) -> AdminBroker:
+        queue_class = cls.admin_broker.get(type_broker)
+
+        if queue_class is None:
+            raise Exception(f"only this broker: {cls.admin_broker.keys()}")
 
         return queue_class

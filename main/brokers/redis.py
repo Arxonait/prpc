@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import redis
 
-from main.brokers import ServerBroker, ClientBroker, AbstractBroker
+from main.brokers import ServerBroker, ClientBroker, AbstractBroker, AdminBroker
 from main.task import Task
 
 _REDIS_CONFIG = {
@@ -37,6 +37,11 @@ class AbstractRedisBroker(AbstractBroker, ABC):
         raise NotImplementedError
 
 
+class RedisAdminBroker(AdminBroker):
+    async def create_queues(self, *args, **kwargs):
+        return
+
+
 class RedisServerBroker(AbstractRedisBroker, ServerBroker):
     # todo to streams
 
@@ -57,10 +62,6 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
             self._client = await redis.asyncio.Redis(host=self.config_broker["host"],
                                                      port=self.config_broker["port"],
                                                      db=self.config_broker["db"])
-
-    @classmethod
-    async def create_queues(cls, *args, **kwargs):
-        return
 
     async def get_next_task_from_queue(self):
         key, value = await self._get_client().brpop(self.get_queue_name())

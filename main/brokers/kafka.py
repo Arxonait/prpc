@@ -58,7 +58,6 @@ class KafkaServerBroker(ServerBroker):
         await self.producer.start()
 
     async def create_queues(self, number_of_workers: int):
-        # todo max number_of_workers
         admin_client = KafkaAdminClient(
             bootstrap_servers=self.config_broker,
             client_id='server_client'

@@ -3,14 +3,13 @@ import datetime
 import logging
 from functools import wraps
 from multiprocessing import freeze_support
-from typing import Literal
 
-import kafka
-from kafka.admin import NewTopic
+import pydantic
 
 from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
 from main.brokers import ServerBroker
 from main.func_module import FuncDataServer
+from main.loggs import get_logger
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
 
 
@@ -25,6 +24,16 @@ def ping():
     return "pong"
 
 
+class InputDataAppServer(pydantic.BaseModel):
+    type_broker: BROKER_ANNOTATION
+    config_broker: dict | str
+    default_type_worker: WORKER_TYPE_ANNOTATE
+
+    max_number_worker: int = pydantic.Field(ge=1, le=16)
+    timeout_worker: datetime.timedelta | None
+    name_queue: str
+
+
 class AppServer:
     __instance = None
     system_func = [get_function_server]
@@ -32,7 +41,7 @@ class AppServer:
     @classmethod
     def get_instance(cls):
         if cls.__instance is None:
-            raise Exception("init app server")
+            raise Exception("Initialize the class `AppServer`")
         return cls.__instance
 
     def __init__(self,
@@ -48,6 +57,10 @@ class AppServer:
             raise Exception("singleton cannot be instantiated more then once ")
 
         AppServer.__instance = self
+
+        InputDataAppServer(type_broker=type_broker, config_broker=config_broker,
+                           default_type_worker=default_type_worker, max_number_worker=max_number_worker,
+                           timeout_worker=timeout_worker, name_queue=name_queue)
 
         self._func_data: list[FuncDataServer] = []
         self.register_func(get_function_server, WorkerType.THREAD.value)
@@ -82,7 +95,7 @@ class AppServer:
         if not self._is_registered_func(func):
             worker_type = self._get_default_worker_type_or_target_worker_type(worker_type)
             self._func_data.append(FuncDataServer(func, worker_type))
-            logging.info(f"Функция {func.__name__} зарегистрирована")
+            get_logger().info(f"Функция {func.__name__} зарегистрирована")
 
     def register_funcs(self, *funcs, worker_type: WORKER_TYPE_ANNOTATE | None = None):
         for func in funcs:
@@ -100,7 +113,7 @@ class AppServer:
 
     async def __start(self):
         freeze_support()
-        logging.info("Старт сервера")
+        get_logger().info("Старт сервера")
         await self.workers[0].queue.create_queues(self.max_number_worker) # todo remove кастыль
 
         tasks = []

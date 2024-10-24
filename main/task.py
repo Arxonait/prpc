@@ -25,8 +25,7 @@ class Task:
         self.date_create_task: datetime.datetime = datetime.datetime.now(datetime.timezone.utc) if date_create_task is None else date_create_task
 
     def task_to_done(self, exception_info=None, result=None):
-        if exception_info is None and result is None:
-            raise Exception # todo
+        assert exception_info is not None or result is not None, "to convert task to done, exception_info or result must be not None"
 
         self.result: Any = result
         self.exception_info: str | None = exception_info

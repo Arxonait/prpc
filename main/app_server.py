@@ -88,12 +88,17 @@ class AppServer:
         return worker_type if worker_type else self.default_type_worker
 
     def decorator_reg_func(self, worker_type: WORKER_TYPE_ANNOTATE | None = None):
+        # todo validete
         def decorator(func):
-            self.register_func(func, worker_type)
 
             @wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
+
+            register_func = func
+            if self._get_default_worker_type_or_target_worker_type(worker_type) == "process":
+                register_func = wrapper  # если для данной функции процесс, то регестрируем ее с декоратором для усипешного востановления процессом
+            self.register_func(register_func, worker_type)
 
             return wrapper
 

@@ -56,12 +56,7 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
         logging.debug(f"Востановлены незавершенные (process) задачи. кол-во задач {len(restore_tasks)}")
 
     async def _create_client(self):
-        if isinstance(self.config_broker, str):
-            self._client = await redis.asyncio.from_url(self.config_broker)
-        else:
-            self._client = await redis.asyncio.Redis(host=self.config_broker["host"],
-                                                     port=self.config_broker["port"],
-                                                     db=self.config_broker["db"])
+        self._client = await redis.asyncio.from_url(self.broker_url)
 
     async def get_next_task_from_queue(self):
         key, value = await self._get_client().brpop(self.get_queue_name())
@@ -103,12 +98,7 @@ class RedisClientBroker(AbstractRedisBroker, ClientBroker):
         self._create_client()
 
     def _create_client(self):
-        if isinstance(self.config_broker, str):
-            self._client = redis.from_url(self.config_broker)
-        else:
-            self._client = redis.Redis(host=self.config_broker["host"],
-                                       port=self.config_broker["port"],
-                                       db=self.config_broker["db"])
+        self._client = redis.from_url(self.broker_url)
 
     def add_task_in_queue(self, task: Task):
         self._client.lpush(self.get_queue_name(), task.serialize())

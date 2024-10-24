@@ -106,13 +106,12 @@ def func_for_test_task_custom_sec(secs):
 
 
 def __process_server_redis_thread(timeout_worker, max_number_worker):
-    app = AppServer(type_broker="redis", config_broker={
+    app = AppServer(type_broker="redis", broker_url={
         "host": "localhost",
         "port": 6379,
         "db": 0
-    },
-                    default_type_worker="thread",
-                    max_number_worker=max_number_worker, name_queue=TEST_NAME_QUEUE, timeout_worker=timeout_worker)
+    }, default_type_worker="thread", max_number_worker=max_number_worker, timeout_worker=timeout_worker,
+                    name_queue=TEST_NAME_QUEUE)
     app.register_funcs(func_for_test_hello_world, func_for_test_sum, func_for_test_greeting,
                        func_for_test_long_task, func_for_test_task_5s, func_for_test_task_custom_sec,
                        worker_type="thread")

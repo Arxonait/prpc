@@ -24,7 +24,7 @@ def ping():
 
 class InputDataAppServer(pydantic.BaseModel):
     type_broker: BROKER_ANNOTATION
-    config_broker: dict | str
+    broker_url: str
     default_type_worker: WORKER_TYPE_ANNOTATE
 
     max_number_worker: int = pydantic.Field(ge=1, le=16)
@@ -45,7 +45,7 @@ class AppServer:
 
     def __init__(self,
                  type_broker: BROKER_ANNOTATION,
-                 config_broker: dict | str,
+                 broker_url: str,
                  default_type_worker: WORKER_TYPE_ANNOTATE = "thread",
                  max_number_worker: int = 4,
                  timeout_worker: datetime.timedelta | None = None,
@@ -59,7 +59,7 @@ class AppServer:
 
         AppServer.__instance = self
 
-        InputDataAppServer(type_broker=type_broker, config_broker=config_broker,
+        InputDataAppServer(type_broker=type_broker, broker_url=broker_url,
                            default_type_worker=default_type_worker, max_number_worker=max_number_worker,
                            timeout_worker=timeout_worker, name_queue=name_queue,
                            kafka_number_of_partitions_main_topic=kafka_number_of_partitions_main_topic)
@@ -72,11 +72,11 @@ class AppServer:
 
         queue_class: ServerBroker = BrokerFactory.get_broker_class_server(type_broker)
         class_admin_broker = BrokerFactory.get_broker_class_admin(type_broker)
-        self._admin_broker: AdminBroker = class_admin_broker(config_broker, name_queue)
+        self._admin_broker: AdminBroker = class_admin_broker(broker_url, name_queue)
 
         self.workers = []
         for _ in range(max_number_worker):
-            queue = queue_class(config_broker, name_queue)
+            queue = queue_class(broker_url, name_queue)
             self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
 
         self._data_for_create_queues = {

@@ -47,7 +47,7 @@ class KafkaAdminBroker(AdminBroker):
             number_of_partitions_main_topic = number_of_workers + 2
 
         admin_client = KafkaAdminClient(
-            bootstrap_servers=self.config_broker,
+            bootstrap_servers=self.broker_url,
             client_id='server_client'
         )
 
@@ -93,12 +93,12 @@ class KafkaServerBroker(ServerBroker):
     async def init(self):
         self.consumer = AIOKafkaConsumer(
             self.get_queue_name(),
-            bootstrap_servers=self.config_broker, # todo формат url
+            bootstrap_servers=self.broker_url, # todo формат url
             group_id="prpc_group",
             auto_offset_reset='latest',
             enable_auto_commit=False
         )
-        self.producer = AIOKafkaProducer(bootstrap_servers=self.config_broker)
+        self.producer = AIOKafkaProducer(bootstrap_servers=self.broker_url)
         await self.consumer.start()
         await self.producer.start()
 
@@ -119,7 +119,7 @@ class KafkaClientBroker(ClientBroker):
         super().__init__(config_broker, queue_name, args, kwargs)
         self.consumer = KafkaConsumer(
             self.get_queue_feedback_name(),
-            bootstrap_servers=self.config_broker,
+            bootstrap_servers=self.broker_url,
             auto_offset_reset='latest',
             consumer_timeout_ms=1000
         )
@@ -128,7 +128,7 @@ class KafkaClientBroker(ClientBroker):
         while not self.consumer.assignment():
             self.consumer.poll(timeout_ms=100)  # Периодически вызываем poll для ожидания
 
-        self.producer = KafkaProducer(bootstrap_servers=self.config_broker)
+        self.producer = KafkaProducer(bootstrap_servers=self.broker_url)
 
     def add_task_in_queue(self, task: Task):
         self.producer.send(self.get_queue_name(), task.serialize().encode())

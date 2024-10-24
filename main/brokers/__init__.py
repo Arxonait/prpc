@@ -7,9 +7,9 @@ class AbstractBroker(ABC):
     _prefix_name_queue = "prpc"
     _prefix_name_queue_feedback = f"{_prefix_name_queue}_feedback"
 
-    def __init__(self, config_broker: str | dict, queue_name: str, *args, **kwargs):
+    def __init__(self, broker_url: str, queue_name: str, *args, **kwargs):
         self.queue_name = queue_name
-        self.config_broker = config_broker
+        self.broker_url = broker_url
 
     def get_queue_name(self):
         return f"{self._prefix_name_queue}_{self.queue_name}"

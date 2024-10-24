@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 from functools import wraps
-from multiprocessing import freeze_support
 
 import pydantic
 
@@ -121,7 +120,6 @@ class AppServer:
         return False
 
     async def __start(self):
-        freeze_support() # todo
         get_logger().info("Старт сервера")
         await self._admin_broker.create_queues(**self._data_for_create_queues)
 

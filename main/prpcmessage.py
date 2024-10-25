@@ -10,15 +10,19 @@ from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
 
 
 class PRPCMessage:
-    def __init__(self, func_name, func_args, func_kwargs, message_id=None):
+    def __init__(self, func_name: str, func_args: list | None, func_kwargs: dict | None, message_id=None):
 
         self.result: Any = None
         self.exception_info: str | None = None
         self.date_done_message: datetime.datetime | None = None
 
+        if not (isinstance(func_name, str) and isinstance(func_args, list | tuple | set | None) and
+                isinstance(func_kwargs, dict | None)):
+            raise Exception("func name must be str, func_args must be list, func_kwargs must be dict")
+
         self.func_name: str = func_name
-        self.func_args: list = func_args
-        self.func_kwargs: dict = func_kwargs
+        self.func_args: list = func_args if func_args is not None else []
+        self.func_kwargs: dict = func_kwargs if func_kwargs is not None else {}
 
         self.message_id: uuid.UUID = uuid.uuid4() if message_id is None else message_id
         self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)

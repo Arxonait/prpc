@@ -5,6 +5,7 @@ from typing import Any
 
 import jsonpickle
 
+from main import loggs
 from main.exceptions import PRPCMessageDeserializeError
 from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
 
@@ -27,7 +28,7 @@ class PRPCMessage:
         self.message_id: uuid.UUID = uuid.uuid4() if message_id is None else message_id
         self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
 
-    def message_to_done(self, exception_info=None, result=None):
+    def message_to_done(self, exception_info: str | None = None, result: Any = None):
         assert exception_info is not None or result is not None, "to convert PRPCMessage to done, exception_info or result must be not None"
 
         self.result: Any = result
@@ -48,18 +49,18 @@ class PRPCMessage:
             result = result_args and result_kwargs
             wrong_values = wrong_values_args + wrong_values_kwargs
         if not result:
-            logging.warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
-            logging.warning(f"Возможно востановить объекты модулей {BASE_MODULE} и {LIB_MODULE}, а также конректных типов {CheckerValueSerialize.specific_type}")
+            loggs.get_logger().warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
+            loggs.get_logger().warning(f"Возможно востановить объекты модулей {LIB_MODULE}, а также примитивных типов")
 
         return jsonpickle.dumps(self)
 
     @classmethod
     def deserialize(cls, serialize_message):
-        #logging.debug(f"Началась сериализация данных {serialize_message}")
+        #loggs.get_logger().debug(f"Началась сериализация данных {serialize_message}")
         message = jsonpickle.loads(serialize_message)
         if not isinstance(message, PRPCMessage):
             raise PRPCMessageDeserializeError(serialize_message)
-        #logging.debug(f"Закончилась сериализация данных")
+        #loggs.get_logger().debug(f"Закончилась сериализация данных")
         return message
 
     def __str__(self):

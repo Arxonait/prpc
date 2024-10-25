@@ -3,12 +3,11 @@ from typing import get_args, get_origin
 
 # todo refactoring
 
-BASE_MODULE = ('builtins', 'typing')
-LIB_MODULE = ('datetime', 'uuid')
+BASE_MODULE = ('builtins', )
+LIB_MODULE = ('datetime', 'uuid', 'typing')
 
 
 class CheckerValueSerialize:
-    specific_type: tuple[type] = ()
 
     @classmethod
     def _get_module_from_value(cls, value):
@@ -17,7 +16,7 @@ class CheckerValueSerialize:
     @classmethod
     def _check_value_for_serialize(cls, value):
         module = cls._get_module_from_value(value)
-        if module in (BASE_MODULE + LIB_MODULE) or type(value) in cls.specific_type:
+        if module in (BASE_MODULE + LIB_MODULE):
             return True
         return False
 

@@ -65,6 +65,8 @@ class AppServer:
                            timeout_worker=timeout_worker, name_queue=name_queue,
                            kafka_number_of_partitions_main_topic=kafka_number_of_partitions_main_topic)
 
+        self._type_broker = type_broker
+
         self._func_data: list[FuncDataServer] = []
         self.register_func(get_function_server, WorkerType.THREAD.value)
         self.register_func(ping, WorkerType.THREAD.value)
@@ -130,6 +132,8 @@ class AppServer:
     async def __start(self):
         get_logger().info("Старт сервера")
         await self._admin_broker.init(**self._data_for_create_queues)
+        get_logger().info(f"Используется брокер {self._type_broker}")
+        get_logger().info(f"Основная очередь: {self._admin_broker.get_queue_name()}, очередь для ответов: {self._admin_broker.get_queue_feedback_name()}")
 
         tasks = []
         for worker in self.workers:

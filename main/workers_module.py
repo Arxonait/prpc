@@ -10,6 +10,7 @@ from typing import Literal, Callable
 
 from main.brokers import ServerBroker
 from main.exceptions import NotFoundFunc, PRPCMessageDeserializeError
+from main.handlers import handler_errors
 from main.loggs import get_logger
 from main.prpcmessage import PRPCMessage
 
@@ -177,6 +178,7 @@ class WorkerManager:
         self.timeout_worker = timeout_worker
         self.current_worker: Worker | None = None
 
+    @handler_errors
     async def start(self):
         await self.queue.init()
         while True:
@@ -196,7 +198,7 @@ class WorkerManager:
                 self.create_current_worker(task, func_data.func, func_data.worker_type)
 
                 tm = self.timeout_worker.total_seconds() if self.timeout_worker else None
-                await asyncio.wait([self.current_worker.get_future()], timeout=tm)
+                await asyncio.wait([self.current_worker.get_future()], timeout=tm)  # study!!!
                 task_done = self.current_worker.get_task()
 
                 logging.info(f"Задача {task_done} выполнилась")

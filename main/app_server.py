@@ -139,7 +139,7 @@ class AppServer:
         for worker in self.workers:
             tasks.append(asyncio.create_task(worker.start()))
 
-        await asyncio.wait(tasks)
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
 
     def start(self):
         asyncio.run(self.__start())

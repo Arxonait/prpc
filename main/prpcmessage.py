@@ -10,21 +10,18 @@ from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
 
 
 class PRPCMessage:
-    def __init__(self, func_name, func_args, func_kwargs, message_id=None, date_create_message=None,
-                 result=None,
-                 exception_info=None,
-                 date_done_message=None):
+    def __init__(self, func_name, func_args, func_kwargs, message_id=None):
 
-        self.result = result
-        self.exception_info = exception_info
-        self.date_done_message = date_done_message
+        self.result: Any = None
+        self.exception_info: str | None = None
+        self.date_done_message: datetime.datetime | None = None
 
         self.func_name: str = func_name
         self.func_args: list = func_args
         self.func_kwargs: dict = func_kwargs
 
         self.message_id: uuid.UUID = uuid.uuid4() if message_id is None else message_id
-        self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc) if date_create_message is None else date_create_message
+        self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
 
     def message_to_done(self, exception_info=None, result=None):
         assert exception_info is not None or result is not None, "to convert PRPCMessage to done, exception_info or result must be not None"

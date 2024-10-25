@@ -5,6 +5,7 @@ from typing import Any
 
 import jsonpickle
 
+from main.exceptions import PRPCMessageDeserializeError
 from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
 
 
@@ -53,10 +54,12 @@ class PRPCMessage:
 
     @classmethod
     def deserialize(cls, serialize_message):
-        # logging.debug(f"Началась сериализация данных {serialize_task}")
-        meessage = jsonpickle.loads(serialize_message)
-        # logging.debug(f"Закончилась сериализация данных")
-        return meessage
+        #logging.debug(f"Началась сериализация данных {serialize_message}")
+        message = jsonpickle.loads(serialize_message)
+        if not isinstance(message, PRPCMessage):
+            raise PRPCMessageDeserializeError(serialize_message)
+        #logging.debug(f"Закончилась сериализация данных")
+        return message
 
     def __str__(self):
         if self.is_message_done():

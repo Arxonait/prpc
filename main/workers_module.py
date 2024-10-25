@@ -9,7 +9,8 @@ from functools import partial
 from typing import Literal, Callable
 
 from main.brokers import ServerBroker
-from main.exceptions import NotFoundFunc
+from main.exceptions import NotFoundFunc, PRPCMessageDeserializeError
+from main.loggs import get_logger
 from main.prpcmessage import PRPCMessage
 
 
@@ -179,7 +180,11 @@ class WorkerManager:
     async def start(self):
         await self.queue.init()
         while True:
-            task = await self.queue.get_next_message_from_queue()
+            try:
+                task = await self.queue.get_next_message_from_queue()
+            except PRPCMessageDeserializeError as e:
+                get_logger().warning(str(e))
+                continue
             logging.info(f"Получена новая задача {task}")
 
             try:

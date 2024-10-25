@@ -4,3 +4,11 @@ class NotFoundFunc(Exception):
 
     def __str__(self):
         return f"func name '{self.func_name}' not found in server"
+
+
+class PRPCMessageDeserializeError(Exception):
+    def __init__(self, serialize_message: str):
+        self.serialize_message = serialize_message
+
+    def __str__(self):
+        return f"the message {self.serialize_message} has the wrong format for deserialize prpc message"

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from main.task import Task
+from main.prpcmessage import PRPCMessage
 
 
 class AbstractBroker(ABC):
@@ -36,19 +36,19 @@ class ServerBroker(AbstractBroker):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_next_task_from_queue(self):
+    async def get_next_message_from_queue(self):
         raise NotImplementedError
 
     @abstractmethod
-    async def add_task_in_feedback_queue(self, task: Task):
+    async def add_message_in_feedback_queue(self, message: PRPCMessage):
         raise NotImplementedError
 
 
 class ClientBroker(AbstractBroker):
     @abstractmethod
-    def add_task_in_queue(self, task: Task):
+    def add_message_in_queue(self, message: PRPCMessage):
         raise NotImplementedError
 
     @abstractmethod
-    def search_task_in_feedback(self, task: Task) -> Task | None:
+    def search_message_in_feedback(self, message: PRPCMessage) -> PRPCMessage | None:
         raise NotImplementedError

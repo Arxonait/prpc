@@ -8,12 +8,12 @@ from kafka.errors import TopicAlreadyExistsError, KafkaTimeoutError
 
 from main import loggs
 from main.brokers import ServerBroker, ClientBroker, AdminBroker
-from main.task import Task
+from main.prpcmessage import PRPCMessage
 
 
 class ManagerCashKafkaClientBroker:
     task_in_process: list[uuid.UUID] = []  # todo система кеширования
-    cash_tasks: list[Task] = []
+    cash_tasks: list[PRPCMessage] = []
 
     @classmethod
     def tasks_in_process_append(cls, task_id):
@@ -27,10 +27,10 @@ class ManagerCashKafkaClientBroker:
             logging.warning("")  # todo
 
     @classmethod
-    def get_task_from_cash(cls, task: Task):
-        result_search: Task | None = None
+    def get_task_from_cash(cls, task: PRPCMessage):
+        result_search: PRPCMessage | None = None
         for cashed_task in cls.cash_tasks:
-            if cashed_task.task_id == task.task_id:
+            if cashed_task.message_id == task.message_id:
                 result_search = cashed_task
                 break
 
@@ -105,14 +105,14 @@ class KafkaServerBroker(ServerBroker):
         await self.consumer.start()
         await self.producer.start()
 
-    async def get_next_task_from_queue(self):
+    async def get_next_message_from_queue(self):
         msg = await self.consumer.getone()
-        task = Task.deserialize(msg.value)
-        return task
+        message = PRPCMessage.deserialize(msg.value)
+        return message
 
-    async def add_task_in_feedback_queue(self, task: Task):
+    async def add_message_in_feedback_queue(self, message: PRPCMessage):
         await self.consumer.commit()
-        await self.producer.send_and_wait(self.get_queue_feedback_name(), task.serialize().encode())
+        await self.producer.send_and_wait(self.get_queue_feedback_name(), message.serialize().encode())
 
 
 class KafkaClientBroker(ClientBroker):
@@ -133,25 +133,25 @@ class KafkaClientBroker(ClientBroker):
 
         self.producer = KafkaProducer(bootstrap_servers=self.broker_url)
 
-    def add_task_in_queue(self, task: Task):
-        self.producer.send(self.get_queue_name(), task.serialize().encode())
-        self.manager_cash.tasks_in_process_append(task.task_id)
+    def add_message_in_queue(self, message: PRPCMessage):
+        self.producer.send(self.get_queue_name(), message.serialize().encode())
+        self.manager_cash.tasks_in_process_append(message.message_id)
 
-    def search_task_in_feedback(self, searched_task: Task) -> Task | None:
-        cashed_task = self.manager_cash.get_task_from_cash(searched_task)
+    def search_message_in_feedback(self, message: PRPCMessage) -> PRPCMessage | None:
+        cashed_task = self.manager_cash.get_task_from_cash(message)
         if cashed_task:
-            assert searched_task.task_id == cashed_task.task_id
+            assert message.message_id == cashed_task.message_id
             return cashed_task
 
         try:
             for message in self.consumer:
-                task = Task.deserialize(message.value)
-                if searched_task.task_id == task.task_id:
-                    self.manager_cash.tasks_in_process_remove(task.task_id)
-                    assert task.task_id == searched_task.task_id
+                task = PRPCMessage.deserialize(message.value)
+                if message.message_id == task.message_id:
+                    self.manager_cash.tasks_in_process_remove(task.message_id)
+                    assert task.message_id == message.message_id
                     return task
-                if task.task_id in self.manager_cash.task_in_process:
-                    self.manager_cash.tasks_in_process_remove(task.task_id)
+                if task.message_id in self.manager_cash.task_in_process:
+                    self.manager_cash.tasks_in_process_remove(task.message_id)
                     self.manager_cash.cash_tasks.append(task)
         except KafkaTimeoutError:
             return None

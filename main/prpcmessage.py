@@ -8,36 +8,37 @@ import jsonpickle
 from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
 
 
-class Task:
-    def __init__(self, func_name, func_args, func_kwargs, task_id=None, date_create_task=None,
+class PRPCMessage:
+    def __init__(self, func_name, func_args, func_kwargs, message_id=None, date_create_message=None,
                  result=None,
                  exception_info=None,
-                 date_done_task=None):
+                 date_done_message=None):
+
         self.result = result
         self.exception_info = exception_info
-        self.date_done_task = date_done_task
+        self.date_done_message = date_done_message
 
         self.func_name: str = func_name
         self.func_args: list = func_args
         self.func_kwargs: dict = func_kwargs
 
-        self.task_id: uuid.UUID = uuid.uuid4() if task_id is None else task_id
-        self.date_create_task: datetime.datetime = datetime.datetime.now(datetime.timezone.utc) if date_create_task is None else date_create_task
+        self.message_id: uuid.UUID = uuid.uuid4() if message_id is None else message_id
+        self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc) if date_create_message is None else date_create_message
 
-    def task_to_done(self, exception_info=None, result=None):
-        assert exception_info is not None or result is not None, "to convert task to done, exception_info or result must be not None"
+    def message_to_done(self, exception_info=None, result=None):
+        assert exception_info is not None or result is not None, "to convert PRPCMessage to done, exception_info or result must be not None"
 
         self.result: Any = result
         self.exception_info: str | None = exception_info
-        self.date_done_task = datetime.datetime.now(datetime.timezone.utc)
+        self.date_done_message = datetime.datetime.now(datetime.timezone.utc)
 
-    def is_task_done(self):
-        if self.date_done_task is None:
+    def is_message_done(self):
+        if self.date_done_message is None:
             return False
         return True
 
     def serialize(self):
-        if self.is_task_done():
+        if self.is_message_done():
             result, wrong_values = CheckerValueSerialize().is_value_good_for_serialize(self.result)
         else:
             result_args, wrong_values_args = CheckerValueSerialize().is_value_good_for_serialize(self.func_args)
@@ -51,15 +52,15 @@ class Task:
         return jsonpickle.dumps(self)
 
     @classmethod
-    def deserialize(cls, serialize_task):
+    def deserialize(cls, serialize_message):
         # logging.debug(f"Началась сериализация данных {serialize_task}")
-        task = jsonpickle.loads(serialize_task)
+        meessage = jsonpickle.loads(serialize_message)
         # logging.debug(f"Закончилась сериализация данных")
-        return task
+        return meessage
 
     def __str__(self):
-        if self.is_task_done():
-            result = f"'Object Task - task done - task_id={self.task_id}, func_name='{self.func_name}', result={self.result}, exception_info={self.exception_info}'"
+        if self.is_message_done():
+            result = f"'Object PRPCMessage done - task_id={self.message_id}, func_name='{self.func_name}', result={self.result}, exception_info={self.exception_info}'"
         else:
-            result = f"'Object Task - task done - task_id={self.task_id}, func_name='{self.func_name}', func_args={self.func_args}, func_kwargs={self.func_kwargs}'"
+            result = f"'Object PRPCMessage done - task_id={self.message_id}, func_name='{self.func_name}', func_args={self.func_args}, func_kwargs={self.func_kwargs}'"
         return result

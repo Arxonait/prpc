@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 from main.brokers.brokers_factory import BrokerFactory
-from main.task import Task
+from main.prpcmessage import PRPCMessage
 from main.brokers import ClientBroker
 
 
@@ -64,26 +64,26 @@ class AwaitableTask:
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
         if self._client_broker is None:
             self.__client_broker = ManagerClientBroker()
-        self._task: Task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
-        self._start_task()
+        self._message: PRPCMessage = PRPCMessage(func_name=func_name, func_args=args, func_kwargs=kwargs)
+        self._send_message()
 
-    def _start_task(self):
-        self.__client_broker.queue.add_task_in_queue(self._task)
+    def _send_message(self):
+        self.__client_broker.queue.add_message_in_queue(self._message)
 
     def check_done_task(self):
-        if self._task.is_task_done():
+        if self._message.is_message_done():
             return True
 
-        task_done = self.__client_broker.queue.search_task_in_feedback(self._task)
-        if task_done is None:
+        message_done = self.__client_broker.queue.search_message_in_feedback(self._message)
+        if message_done is None:
             return False
 
-        self._task = task_done
+        self._message = message_done
         return True
 
     def _check_timeout(self, start_wait, timeout):
         if timeout is not None and datetime.datetime.now() - start_wait > timeout:
-            assert not self._task.is_task_done(), "при wait timeout должна быть возможность повторного ожидания"
+            assert not self._message.is_message_done(), "при wait timeout должна быть возможность повторного ожидания"
             raise Exception(f"the task was completed by wait timeout {timeout.total_seconds()} secs.")
 
     def sync_wait_result_task(self, timeout: datetime.timedelta | None = None):
@@ -103,21 +103,21 @@ class AwaitableTask:
             await asyncio.sleep(1)
 
     def get_result(self):
-        if not self._task.is_task_done():
+        if not self._message.is_message_done():
             raise Exception("task in process")
 
-        if self._task.exception_info:
-            raise Exception(self._task.exception_info)
+        if self._message.exception_info:
+            raise Exception(self._message.exception_info)
 
-        return self._task.result
+        return self._message.result
 
     @property
-    def task(self):
-        return self._task
+    def message(self):
+        return self._message
 
     @property
     def time_execution(self) -> datetime.timedelta | None:
-        if not self._task.is_task_done():
+        if not self._message.is_message_done():
             return None
 
-        return self._task.date_done_task - self._task.date_create_task
+        return self._message.date_done_message - self._message.date_create_message

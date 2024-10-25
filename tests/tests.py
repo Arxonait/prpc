@@ -15,7 +15,7 @@ from main.app_client import ping
 from main.app_server import AppServer
 from main.brokers.redis import RedisClientBroker, RedisServerBroker,RedisAdminBroker
 from main.func_module import FuncDataServer
-from main.task import Task
+from main.prpcmessage import PRPCMessage
 from main.type_module import CheckerValueSerialize, HandlerAnnotation
 
 TEST_NAME_QUEUE = "test_queue"
@@ -41,8 +41,8 @@ def delete_keys_by_pattern(redis_client, pattern):
 
 @pytest_asyncio.fixture(loop_scope="class")
 async def create_task_in_queue_redis(client_queue_redis):
-    task = Task(func_name="test_func", func_args=[], func_kwargs={})
-    client_queue_redis.add_task_in_queue(task)
+    task = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
+    client_queue_redis.add_message_in_queue(task)
     return task
 
 
@@ -133,58 +133,58 @@ def server_redis_thread_2w_20s():
 @pytest.mark.asyncio(loop_scope="class")
 class TestRedisBroker:
     def test_add_task_in_queue(self, client_queue_redis, client_redis, clear_redis):
-        task = Task(func_name="test_func", func_args=[], func_kwargs={})
+        task = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
 
-        client_queue_redis.add_task_in_queue(task)
+        client_queue_redis.add_message_in_queue(task)
 
         task_data = client_redis.lpop(client_queue_redis.get_queue_name())
-        saved_task = Task.deserialize(task_data)
+        saved_task = PRPCMessage.deserialize(task_data)
 
-        assert task.task_id == saved_task.task_id
+        assert task.message_id == saved_task.message_id
 
     async def test_get_task_from_queue(self, server_queue_redis, client_redis, create_task_in_queue_redis, clear_redis):
-        created_task: Task = create_task_in_queue_redis
+        created_task: PRPCMessage = create_task_in_queue_redis
         server_queue_redis: RedisServerBroker = server_queue_redis
-        task: Task = await server_queue_redis.get_next_task_from_queue()
+        task: PRPCMessage = await server_queue_redis.get_next_message_from_queue()
 
         assert client_redis.llen(server_queue_redis.get_queue_name()) == 0
 
-        assert isinstance(task, Task)
-        assert created_task.task_id == task.task_id
+        assert isinstance(task, PRPCMessage)
+        assert created_task.message_id == task.message_id
 
-        task_data = client_redis.get(server_queue_redis.get_queue_process_name_task_id(task.task_id))
-        task_processing = Task.deserialize(task_data)
+        task_data = client_redis.get(server_queue_redis.get_queue_process_name_message_id(task.message_id))
+        task_processing = PRPCMessage.deserialize(task_data)
 
-        assert task_processing.task_id == created_task.task_id
+        assert task_processing.message_id == created_task.message_id
 
     async def test_save_task_in_feedback(self, server_queue_redis, client_redis, create_task_in_queue_redis, clear_redis):
-        created_task: Task = create_task_in_queue_redis
+        created_task: PRPCMessage = create_task_in_queue_redis
         server_queue_redis: RedisServerBroker = server_queue_redis
-        task = await server_queue_redis.get_next_task_from_queue()
+        task = await server_queue_redis.get_next_message_from_queue()
 
-        await server_queue_redis.add_task_in_feedback_queue(task)
+        await server_queue_redis.add_message_in_feedback_queue(task)
 
-        task_data = client_redis.get(server_queue_redis.get_queue_process_name_task_id(task.task_id))
+        task_data = client_redis.get(server_queue_redis.get_queue_process_name_message_id(task.message_id))
         assert task_data is None
 
-        task_data = client_redis.get(server_queue_redis.get_queue_feedback_name_task_id(task.task_id))
-        task_feedback = Task.deserialize(task_data)
-        assert task_feedback.task_id == created_task.task_id
+        task_data = client_redis.get(server_queue_redis.get_queue_feedback_name_message_id(task.message_id))
+        task_feedback = PRPCMessage.deserialize(task_data)
+        assert task_feedback.message_id == created_task.message_id
 
     async def test_search_task_in_feedback(self, server_queue_redis, client_queue_redis, client_redis,
                                            create_task_in_queue_redis):
-        created_task: Task = create_task_in_queue_redis
+        created_task: PRPCMessage = create_task_in_queue_redis
         server_queue_redis: RedisServerBroker = server_queue_redis
-        task = await server_queue_redis.get_next_task_from_queue()
+        task = await server_queue_redis.get_next_message_from_queue()
 
-        await server_queue_redis.add_task_in_feedback_queue(task)
+        await server_queue_redis.add_message_in_feedback_queue(task)
 
-        task = client_queue_redis.search_task_in_feedback(task)
+        task = client_queue_redis.search_message_in_feedback(task)
 
-        task_data = client_redis.get(server_queue_redis.get_queue_feedback_name_task_id(task.task_id))
+        task_data = client_redis.get(server_queue_redis.get_queue_feedback_name_message_id(task.message_id))
         assert task_data is None
 
-        assert task.task_id == created_task.task_id
+        assert task.message_id == created_task.message_id
 
     async def test_restore_tasks(self, create_task_in_queue_redis, clear_redis, client_redis):
         admin = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
@@ -193,7 +193,7 @@ class TestRedisBroker:
 
         queue = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
         await queue.init()
-        await queue.get_next_task_from_queue()
+        await queue.get_next_message_from_queue()
         del queue
 
         admin = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
@@ -213,11 +213,11 @@ class TestAppServerRedisThread:
     )
     def test_run_funcs(self, func_name, args, kwargs, expected, server_redis_thread_4w_5s, client_queue_redis,
                        clear_redis):
-        task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
+        task = PRPCMessage(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
-        client_queue_redis.add_task_in_queue(task)
+        client_queue_redis.add_message_in_queue(task)
         while True:
-            task_result = client_queue_redis.search_task_in_feedback(task)
+            task_result = client_queue_redis.search_message_in_feedback(task)
             if task_result:
                 assert task_result.result == expected
                 break
@@ -233,11 +233,11 @@ class TestAppServerRedisThread:
         ]
     )
     def test_run_wrong_funcs(self, func_name, args, kwargs, server_redis_thread_4w_5s, client_queue_redis, clear_redis):
-        task = Task(func_name=func_name, func_args=args, func_kwargs=kwargs)
+        task = PRPCMessage(func_name=func_name, func_args=args, func_kwargs=kwargs)
 
-        client_queue_redis.add_task_in_queue(task)
+        client_queue_redis.add_message_in_queue(task)
         while True:
-            task_result = client_queue_redis.search_task_in_feedback(task)
+            task_result = client_queue_redis.search_message_in_feedback(task)
             if task_result:
                 assert task_result.result is None
                 assert task_result.exception_info is not None
@@ -251,22 +251,22 @@ class TestAppServerRedisThread:
 
         tasks_id = []
         for _ in range(6):
-            task = Task(func_name="func_for_test_task_custom_sec", func_args=(15,), func_kwargs={})
-            client_queue_redis.add_task_in_queue(task)
-            tasks_id.append(task.task_id)
+            task = PRPCMessage(func_name="func_for_test_task_custom_sec", func_args=(15,), func_kwargs={})
+            client_queue_redis.add_message_in_queue(task)
+            tasks_id.append(task.message_id)
 
         assert 6 - 2 == client_redis.llen("prpc_" + TEST_NAME_QUEUE)
-        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[0]))
-        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[1]))
-        assert client_redis.get(client_queue_redis.get_queue_process_name_task_id(tasks_id[2])) is None
+        assert client_redis.get(client_queue_redis.get_queue_process_name_message_id(tasks_id[0]))
+        assert client_redis.get(client_queue_redis.get_queue_process_name_message_id(tasks_id[1]))
+        assert client_redis.get(client_queue_redis.get_queue_process_name_message_id(tasks_id[2])) is None
 
     def test_done_all_task(self, server_redis_thread_2w_20s, client_queue_redis, client_redis, clear_redis):
         tasks_id = []
         seconds = [5, 1, 1, 2, 3, 1]
         for secs in seconds:
-            task = Task(func_name="func_for_test_task_custom_sec", func_args=(secs,), func_kwargs={})
-            client_queue_redis.add_task_in_queue(task)
-            tasks_id.append(task.task_id)
+            task = PRPCMessage(func_name="func_for_test_task_custom_sec", func_args=(secs,), func_kwargs={})
+            client_queue_redis.add_message_in_queue(task)
+            tasks_id.append(task.message_id)
 
         start_wait = datetime.datetime.now()
         while True:

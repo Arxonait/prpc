@@ -8,7 +8,11 @@ from kafka.errors import TopicAlreadyExistsError, KafkaTimeoutError
 
 from main import loggs
 from main.brokers import ServerBroker, ClientBroker, AdminBroker
+from main.loggs import Logger
 from main.prpcmessage import PRPCMessage
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 class ManagerCashKafkaClientBroker:
@@ -24,7 +28,7 @@ class ManagerCashKafkaClientBroker:
         try:
             cls.task_in_process.remove(task_id)
         except ValueError as e:
-            logging.warning("")  # todo
+            logger.warning("")  # todo
 
     @classmethod
     def get_task_from_cash(cls, task: PRPCMessage):
@@ -69,7 +73,7 @@ class KafkaAdminBroker(AdminBroker):
 
         try:
             admin_client.create_topics(new_topics=topic_list, validate_only=False)
-            loggs.get_logger().info(f"Kafka: топики `{self.get_queue_name()}`, `{self.get_queue_feedback_name()}` успешно созданы")
+            logger.info(f"Kafka: топики `{self.get_queue_name()}`, `{self.get_queue_feedback_name()}` успешно созданы")
         except TopicAlreadyExistsError:
 
             topics_metadata = admin_client.describe_topics([self.get_queue_name(), self.get_queue_feedback_name()])
@@ -83,7 +87,7 @@ class KafkaAdminBroker(AdminBroker):
                     # Увеличиваем количество партиций
                     new_partitions = NewPartitions(total_count=topic_data[topic_name])
                     admin_client.create_partitions({topic_name: new_partitions})
-                    loggs.get_logger().info(
+                    logger.info(
                         f"Kafka: было увеличено колво партиций в топике `{topic_name}`, c {len(current_partitions)} до {topic_data[topic_name]}")
 
 

@@ -11,8 +11,11 @@ from typing import Literal, Callable
 from main.brokers import ServerBroker
 from main.exceptions import NotFoundFunc, PRPCMessageDeserializeError
 from main.handlers import handler_errors
-from main.loggs import get_logger
+from main.loggs import Logger
 from main.prpcmessage import PRPCMessage
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 class WorkerType(Enum):
@@ -185,9 +188,9 @@ class WorkerManager:
             try:
                 task = await self.queue.get_next_message_from_queue()
             except PRPCMessageDeserializeError as e:
-                get_logger().warning(str(e))
+                logger.warning(str(e))
                 continue
-            logging.info(f"Получена новая задача {task}")
+            logger.info(f"Получена новая задача {task}")
 
             try:
                 func_data = self._get_func_data(task)
@@ -201,7 +204,7 @@ class WorkerManager:
                 await asyncio.wait([self.current_worker.get_future()], timeout=tm)  # study!!!
                 task_done = self.current_worker.get_task()
 
-                logging.info(f"Задача {task_done} выполнилась")
+                logger.info(f"Задача {task_done} выполнилась")
                 await self.queue.add_message_in_feedback_queue(task_done)
             finally:
                 self.current_worker = None
@@ -212,7 +215,7 @@ class WorkerManager:
         class_worker = WorkerFactory.get_worker(type_worker)
         self.current_worker = class_worker(task, func, self.timeout_worker)
         self.current_worker.start_work()
-        logging.debug(f"Задача task_id = {task.message_id} начала исполнятся воркером {type_worker}")
+        logger.debug(f"Задача task_id = {task.message_id} начала исполнятся воркером {type_worker}")
 
     def _get_func_data(self, task: PRPCMessage):
         for func_data in self.func_data:
@@ -222,5 +225,5 @@ class WorkerManager:
 
     async def _handler_task_with_exception(self, task: PRPCMessage):
         assert task.exception_info is not None, "Только для задач с инофрмацией об ошибке"
-        logging.warning(f"Задача {task} не выполнилась по причине {task.exception_info}")
+        logger.warning(f"Задача {task} не выполнилась по причине {task.exception_info}")
         await self.queue.add_message_in_feedback_queue(task)

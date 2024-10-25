@@ -2,8 +2,12 @@ import inspect
 import logging
 from typing import Callable
 
+from main.loggs import Logger
 from main.type_module import HandlerAnnotation
 from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 class FuncDataServer:
@@ -61,7 +65,7 @@ class FuncDataServer:
                 invalid_annotations.extend(HandlerAnnotation.is_valid_annotation(func_arg.annotation))
 
         if invalid_annotations:
-            logging.warning(f"Функциия '{self.func_name}' имеет некоректные аннотации {invalid_annotations}")
+            logger.warning(f"Функциия '{self.func_name}' имеет некоректные аннотации {invalid_annotations}")
 
     def __repr__(self):
         return f"FuncDataServer: func_name={self.func_name}, worker_type={self.worker_type}"

@@ -1,6 +1,9 @@
 import functools
 
-from main import loggs
+from main.loggs import Logger
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 def handler_errors(func):
@@ -9,7 +12,7 @@ def handler_errors(func):
         try:
             return await func(*args, **kwargs)
         except Exception as e:
-            loggs.get_logger().critical(str(e))
+            logger.critical(str(e))
             raise e
 
     return wrapper

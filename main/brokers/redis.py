@@ -6,8 +6,12 @@ import redis
 
 from main import loggs
 from main.brokers import ServerBroker, ClientBroker, AbstractBroker, AdminBroker
+from main.loggs import Logger
 from main.settings_server import Settings
 from main.prpcmessage import PRPCMessage
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 class AbstractRedisBroker(AbstractBroker, ABC):
@@ -43,7 +47,7 @@ class RedisAdminBroker(AdminBroker, AbstractRedisBroker):
         await self._create_client()
         await self.create_queues()
         restore_messages = await self._restoring_processing_messages()
-        loggs.get_logger().info(f"Redis: востановлены незавершенные задачи (сообщения). Кол-во сообщений {len(restore_messages)}")
+        logger.info(f"Redis: востановлены незавершенные задачи (сообщения). Кол-во сообщений {len(restore_messages)}")
 
     async def create_queues(self, *args, **kwargs):
         return

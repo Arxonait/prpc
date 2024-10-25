@@ -7,7 +7,11 @@ import jsonpickle
 
 from main import loggs
 from main.exceptions import PRPCMessageDeserializeError
+from main.loggs import Logger
 from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 class PRPCMessage:
@@ -49,18 +53,18 @@ class PRPCMessage:
             result = result_args and result_kwargs
             wrong_values = wrong_values_args + wrong_values_kwargs
         if not result:
-            loggs.get_logger().warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
-            loggs.get_logger().warning(f"Возможно востановить объекты модулей {LIB_MODULE}, а также примитивных типов")
+            logger.warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
+            logger.warning(f"Возможно востановить объекты модулей {LIB_MODULE}, а также примитивных типов")
 
         return jsonpickle.dumps(self)
 
     @classmethod
     def deserialize(cls, serialize_message):
-        #loggs.get_logger().debug(f"Началась сериализация данных {serialize_message}")
+        #logger.debug(f"Началась сериализация данных {serialize_message}")
         message = jsonpickle.loads(serialize_message)
         if not isinstance(message, PRPCMessage):
             raise PRPCMessageDeserializeError(serialize_message)
-        #loggs.get_logger().debug(f"Закончилась сериализация данных")
+        #logger.debug(f"Закончилась сериализация данных")
         return message
 
     def __str__(self):

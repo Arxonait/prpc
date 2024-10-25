@@ -8,8 +8,11 @@ import pydantic
 from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
 from main.brokers import ServerBroker, AdminBroker
 from main.func_module import FuncDataServer
-from main.loggs import get_logger
+from main.loggs import Logger
 from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
+
+logger = Logger.get_instance()
+logger = logger.prpc_logger
 
 
 def get_function_server() -> list[dict]:
@@ -113,7 +116,7 @@ class AppServer:
             assert worker_type in get_args(WORKER_TYPE_ANNOTATE), f"worker_type must be {get_args(WORKER_TYPE_ANNOTATE)}"
 
             self._func_data.append(FuncDataServer(func, worker_type))
-            get_logger().info(f"Функция {func.__name__} зарегистрирована")
+            logger.info(f"Функция {func.__name__} зарегистрирована")
 
     def register_funcs(self, *funcs, worker_type: WORKER_TYPE_ANNOTATE | None = None):
         for func in funcs:
@@ -130,10 +133,10 @@ class AppServer:
         return False
 
     async def __start(self):
-        get_logger().info("Старт сервера")
+        logger.info("Старт сервера")
         await self._admin_broker.init(**self._data_for_create_queues)
-        get_logger().info(f"Используется брокер {self._type_broker}")
-        get_logger().info(f"Основная очередь: {self._admin_broker.get_queue_name()}, очередь для ответов: {self._admin_broker.get_queue_feedback_name()}")
+        logger.info(f"Используется брокер {self._type_broker}")
+        logger.info(f"Основная очередь: {self._admin_broker.get_queue_name()}, очередь для ответов: {self._admin_broker.get_queue_feedback_name()}")
 
         tasks = []
         for worker in self.workers:

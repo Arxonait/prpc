@@ -1,4 +1,3 @@
-import logging
 import uuid
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -6,9 +5,8 @@ from kafka import KafkaAdminClient, KafkaConsumer, KafkaProducer
 from kafka.admin import NewTopic, NewPartitions
 from kafka.errors import TopicAlreadyExistsError, KafkaTimeoutError
 
-from main import loggs
 from main.brokers import ServerBroker, ClientBroker, AdminBroker
-from main.loggs import Logger
+from main.support_module.loggs import Logger
 from main.prpcmessage import PRPCMessage
 
 logger = Logger.get_instance()

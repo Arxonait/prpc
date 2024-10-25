@@ -3,9 +3,9 @@ from datetime import timedelta
 from typing import Callable
 
 from main.brokers import ServerBroker
-from main.exceptions import NotFoundFunc, PRPCMessageDeserializeError
-from main.handlers import handler_errors
-from main.loggs import Logger
+from main.support_module.exceptions import NotFoundFunc, PRPCMessageDeserializeError
+from main.support_module.handlers import handler_errors
+from main.support_module.loggs import Logger
 from main.prpcmessage import PRPCMessage
 from main.workers import WORKER_TYPE_ANNOTATE, Worker
 from main.workers.workers_factory import WorkerFactory

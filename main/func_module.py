@@ -1,8 +1,7 @@
 import inspect
-import logging
 from typing import Callable
 
-from main.loggs import Logger
+from main.support_module.loggs import Logger
 from main.type_module import HandlerAnnotation
 from main.workers import WORKER_TYPE_ANNOTATE
 from main.workers.workers_factory import WorkerFactory

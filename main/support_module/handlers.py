@@ -1,6 +1,6 @@
 import functools
 
-from main.loggs import Logger
+from main.support_module.loggs import Logger
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

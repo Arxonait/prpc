@@ -1,12 +1,10 @@
 import datetime
-import logging
 from abc import ABC, abstractmethod
 
 import redis
 
-from main import loggs
 from main.brokers import ServerBroker, ClientBroker, AbstractBroker, AdminBroker
-from main.loggs import Logger
+from main.support_module.loggs import Logger
 from main.settings_server import Settings
 from main.prpcmessage import PRPCMessage
 

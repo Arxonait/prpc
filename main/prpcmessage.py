@@ -1,14 +1,12 @@
 import datetime
-import logging
 import uuid
 from typing import Any
 
 import jsonpickle
 
-from main import loggs
-from main.exceptions import PRPCMessageDeserializeError
-from main.loggs import Logger
-from main.type_module import CheckerValueSerialize, BASE_MODULE, LIB_MODULE
+from main.support_module.exceptions import PRPCMessageDeserializeError
+from main.support_module.loggs import Logger
+from main.type_module import CheckerValueSerialize, LIB_MODULE
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

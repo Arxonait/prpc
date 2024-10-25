@@ -4,7 +4,8 @@ from typing import Callable
 
 from main.loggs import Logger
 from main.type_module import HandlerAnnotation
-from main.workers_module import WorkerFactory, WORKER_TYPE_ANNOTATE
+from main.workers import WORKER_TYPE_ANNOTATE
+from main.workers.workers_factory import WorkerFactory
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

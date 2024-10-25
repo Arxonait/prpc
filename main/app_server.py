@@ -9,7 +9,8 @@ from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
 from main.brokers import ServerBroker, AdminBroker
 from main.func_module import FuncDataServer
 from main.loggs import Logger
-from main.workers_module import WorkerManager, WORKER_TYPE_ANNOTATE, WorkerType
+from main.workers import WORKER_TYPE_ANNOTATE, WorkerType
+from main.workers.worker_manager import WorkerManager
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

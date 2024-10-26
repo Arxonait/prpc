@@ -43,6 +43,7 @@ class PRPCMessage:
         return True
 
     def serialize(self):
+        # todo мультиплатформенность
         if self.is_message_done():
             result, wrong_values = CheckerValueSerialize().is_value_good_for_serialize(self.result)
         else:

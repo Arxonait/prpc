@@ -9,6 +9,8 @@ from main.workers.workers_factory import WorkerFactory
 logger = Logger.get_instance()
 logger = logger.prpc_logger
 
+# todo рефакторинг, применить принцип единной ответсвенности для сериализации
+
 
 class FuncDataServer:
     def __init__(self, func: Callable, worker_type: WORKER_TYPE_ANNOTATE):

@@ -24,10 +24,6 @@ class AdminBroker(AbstractBroker):
     async def init(self, *args, **kwargs):
         raise NotImplementedError
 
-    @abstractmethod
-    async def create_queues(self, *args, **kwargs):
-        raise NotImplementedError
-
 
 class ServerBroker(AbstractBroker):
 

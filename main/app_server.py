@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from functools import wraps
-from typing import get_args
+from typing import get_args, Type
 
 import pydantic
 
@@ -82,8 +82,11 @@ class AppServer:
         self._admin_broker: AdminBroker = class_admin_broker(broker_url, name_queue)
 
         self.workers = []
-        for _ in range(max_number_worker):
-            queue = queue_class(broker_url, name_queue)
+        for i in range(max_number_worker):
+            context = {
+                "queue_number": i
+            }
+            queue = queue_class(broker_url, name_queue, context=context)
             self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
 
         self._data_for_create_queues = {

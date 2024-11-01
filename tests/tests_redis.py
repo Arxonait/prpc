@@ -1,8 +1,11 @@
+import time
+
 import pytest
 import pytest_asyncio
 
 from main.brokers.redis import RedisClientBroker, RedisAdminBroker, RedisServerBroker
 from main.prpcmessage import PRPCMessage
+from main.settings_server import Settings
 from tests.data_for_tests import CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK
 from tests.fixtures_redis import client_redis, clear_redis
 
@@ -84,6 +87,24 @@ class TestRedisStream:
 
         task_from_feedback = client_redis_broker.search_message_in_feedback(task)
         assert task.message_id == task_from_feedback.message_id
+
+    async def test_server_restore_message(self, init_admin_broker, add_task_in_stream, clear_redis):
+        Settings._redis_recover_interval = 1
+        Settings._redis_heartbeat_interval = 100
+
+        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, context={"queue_number": 0})
+        await redis_server_broker0.init()
+        message0 = await redis_server_broker0.get_next_message_from_queue()
+        del redis_server_broker0
+
+        time.sleep(3)
+
+        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, context={"queue_number": 1})
+        await redis_server_broker1.init()
+        message1 = await redis_server_broker1.get_next_message_from_queue()
+
+        assert message1.message_id == message0.message_id
+
 
 
 def test_framework_name_stream(client_redis_broker, clear_redis):

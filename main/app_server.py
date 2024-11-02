@@ -140,7 +140,8 @@ class AppServer:
         logger.info("Старт сервера")
         await self._admin_broker.init(**self._data_for_create_queues)
         logger.info(f"Используется брокер {self._type_broker}")
-        logger.info(f"Основная очередь: {self._admin_broker.get_queue_name()}, очередь для ответов: {self._admin_broker.get_queue_feedback_name()}")
+        logger.info(f"{str(self._admin_broker.queue)}")
+        logger.info(f"{str(self._admin_broker.queue_raw)}")
 
         tasks = []
         for worker in self.workers:

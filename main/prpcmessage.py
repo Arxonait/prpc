@@ -1,15 +1,24 @@
 import datetime
+import json
 import uuid
 from typing import Any
 
 import jsonpickle
+import pydantic
 
-from main.support_module.exceptions import PRPCMessageDeserializeError
+from main.support_module.exceptions import PRPCMessageDeserializeError, JSONDeserializeError
 from main.support_module.loggs import Logger
 from main.type_module import CheckerValueSerialize, LIB_MODULE
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger
+
+
+class ValidaterPRPCMessageRaw(pydantic.BaseModel):
+    func_name: str
+    func_args: list = []
+    func_kwargs: dict = {}
+    message_id: str
 
 
 class PRPCMessage:
@@ -42,8 +51,10 @@ class PRPCMessage:
             return False
         return True
 
-    def serialize(self):
-        # todo мультиплатформенность
+    def serialize(self, serialize_raw=False):
+        if serialize_raw:
+            return jsonpickle.dumps(self, False)
+
         if self.is_message_done():
             result, wrong_values = CheckerValueSerialize().is_value_good_for_serialize(self.result)
         else:
@@ -58,12 +69,27 @@ class PRPCMessage:
         return jsonpickle.dumps(self)
 
     @classmethod
-    def deserialize(cls, serialize_message):
+    def deserialize(cls, serialize_message: str):
         #logger.debug(f"Началась сериализация данных {serialize_message}")
         message = jsonpickle.loads(serialize_message)
         if not isinstance(message, PRPCMessage):
             raise PRPCMessageDeserializeError(serialize_message)
         #logger.debug(f"Закончилась сериализация данных")
+        return message
+
+    @classmethod
+    def deserialize_raw(cls, serialize_message: str):
+        try:
+            serialize_message = json.loads(serialize_message)
+        except Exception as e:
+            raise JSONDeserializeError
+
+        try:
+            message = ValidaterPRPCMessageRaw(**serialize_message)
+        except pydantic.ValidationError as e:
+            raise PRPCMessageDeserializeError(serialize_message)
+
+        message = PRPCMessage(message.func_name, message.func_args, message.func_kwargs, message.message_id)
         return message
 
     def __str__(self):

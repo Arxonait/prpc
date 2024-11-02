@@ -2,6 +2,7 @@ import asyncio
 from asyncio import Task
 from typing import Any
 
+from main.support_module.exceptions import MessageFromStreamDataValidationError
 from main.support_module.loggs import Logger
 
 logger = Logger.get_instance()
@@ -23,6 +24,7 @@ class MessageFromSteam:
         self.stream = stream if isinstance(stream, str) else stream.decode("utf8")
         self.message_id = message_data[0]
         self.data = message_data[1]
+        self._validate_data()
 
     async def _task_send_heartbeat(self, client_redis, heartbeat_interval: int, group_name, consumer_name):
         while True:
@@ -45,5 +47,10 @@ class MessageFromSteam:
         await client_redis.xack(self.stream, group_name, self.message_id)
         self.task_heartbeat.cancel()
         self.task_heartbeat = None
+
+    def _validate_data(self):
+        message_data = self.data.get(b"message")
+        if message_data is None:
+            raise MessageFromStreamDataValidationError
 
 

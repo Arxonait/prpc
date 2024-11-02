@@ -3,19 +3,44 @@ from abc import ABC, abstractmethod
 from main.prpcmessage import PRPCMessage
 
 
-class AbstractBroker(ABC):
+class AbstractQueue(ABC):
     _prefix_name_queue = "prpc"
     _prefix_name_queue_feedback = f"{_prefix_name_queue}_feedback"
 
+    def __init__(self, queue_name: str):
+        self.queue = f"{self._prefix_name_queue}_{queue_name}"
+        self.queue_feedback = f"{self._prefix_name_queue_feedback}_{queue_name}"
+
+    def __str__(self):
+        return f"Queue --- main queue - `{self.queue}`, feedback queue - `{self.queue_feedback}`"
+
+
+class AbstractQueueRaw(AbstractQueue, ABC):
+
+    def __init__(self, queue_name: str):
+        self.queue = f"{self._prefix_name_queue}_raw_{queue_name}"
+        self.queue_feedback = f"{self._prefix_name_queue_feedback}_raw_{queue_name}"
+
+    def __str__(self):
+        return f"Queue raw --- main queue - `{self.queue}`, feedback queue - `{self.queue_feedback}`"
+
+
+class AbstractBroker(ABC):
     def __init__(self, broker_url: str, queue_name: str, *args, **kwargs):
-        self.queue_name = queue_name
+        self._queue_name = queue_name
         self.broker_url = broker_url
 
-    def get_queue_name(self):
-        return f"{self._prefix_name_queue}_{self.queue_name}"
+        self.queue = self._init_queue(queue_name)
+        self.queue_raw = self._init_queue_raw(queue_name)
+        self.queues = (self.queue, self.queue_raw)
 
-    def get_queue_feedback_name(self):
-        return f"{self._prefix_name_queue_feedback}_{self.queue_name}"
+    @abstractmethod
+    def _init_queue(self, queue_name) -> AbstractQueue:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _init_queue_raw(self, queue_name) -> AbstractQueueRaw:
+        raise NotImplementedError
 
 
 class AdminBroker(AbstractBroker):
@@ -48,3 +73,4 @@ class ClientBroker(AbstractBroker):
     @abstractmethod
     def search_message_in_feedback(self, message: PRPCMessage) -> PRPCMessage | None:
         raise NotImplementedError
+

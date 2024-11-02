@@ -12,3 +12,13 @@ class PRPCMessageDeserializeError(Exception):
 
     def __str__(self):
         return f"the message {self.serialize_message} has the wrong format for deserialize prpc message"
+
+
+class MessageFromStreamDataValidationError(Exception):
+    def __str__(self):
+        return f"the message from stream does not have an attribute `message`"
+
+
+class JSONDeserializeError(Exception):
+    def __str__(self):
+        return f"json error"

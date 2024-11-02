@@ -3,7 +3,8 @@ from datetime import timedelta
 from typing import Callable
 
 from main.brokers import ServerBroker
-from main.support_module.exceptions import NotFoundFunc, PRPCMessageDeserializeError
+from main.support_module.exceptions import NotFoundFunc, PRPCMessageDeserializeError, \
+    MessageFromStreamDataValidationError, JSONDeserializeError
 from main.support_module.handlers import handler_errors
 from main.support_module.loggs import Logger
 from main.prpcmessage import PRPCMessage
@@ -30,9 +31,10 @@ class WorkerManager:
         while True:
             try:
                 task = await self.queue.get_next_message_from_queue()
-            except PRPCMessageDeserializeError as e:
-                logger.warning(str(e))
+            except (PRPCMessageDeserializeError, MessageFromStreamDataValidationError, JSONDeserializeError) as e:
+                logger.warning(str(e))  # todo отправлять овтет об ошибках?
                 continue
+
             logger.info(f"Получена новая задача {task}")
 
             try:

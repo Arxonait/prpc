@@ -45,7 +45,7 @@ def client_redis_broker():
 @pytest.fixture()
 def add_message_in_stream(client_redis):
     message = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
-    client_redis.xadd(FRAMEWORK_NAME_QUEUE, {"serialized_data": message.serialize()})
+    client_redis.xadd(FRAMEWORK_NAME_QUEUE, {"message": message.serialize()})
     return message
 
 
@@ -60,7 +60,7 @@ class TestRedisStream:
         stream_data = parse_stream_data(stream_data)
 
         assert len(stream_data) == 1
-        message_from_stream = PRPCMessage.deserialize(stream_data[0]["data"][b"serialized_data"])
+        message_from_stream = PRPCMessage.deserialize(stream_data[0]["data"][b"message"])
         assert message.message_id == message_from_stream.message_id
 
     async def test_multiply_create_groups(self, client_redis, clear_redis):
@@ -107,8 +107,8 @@ class TestRedisStream:
 
 
 def test_framework_name_stream(client_redis_broker, clear_redis):
-    assert FRAMEWORK_NAME_QUEUE == client_redis_broker.get_queue_name()
-    assert FRAMEWORK_NAME_QUEUE_FEEDBACK == client_redis_broker.get_queue_feedback_name()
+    assert FRAMEWORK_NAME_QUEUE == client_redis_broker.queue.queue
+    assert FRAMEWORK_NAME_QUEUE_FEEDBACK == client_redis_broker.queue.queue_feedback
 
 
 

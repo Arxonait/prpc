@@ -35,6 +35,7 @@ class InputDataAppServer(pydantic.BaseModel):
     max_number_worker: int = pydantic.Field(ge=1, le=16)
     timeout_worker: datetime.timedelta | None
     name_queue: str
+    group_name: str
     kafka_number_of_partitions_main_topic: int | None
 
 
@@ -56,6 +57,7 @@ class AppServer:
                  timeout_worker: datetime.timedelta | None = None,
 
                  name_queue="task_prpc",
+                 group_name="prpc_group_consumers",
                  *args,
                  kafka_number_of_partitions_main_topic: int | None = None):
 
@@ -66,7 +68,7 @@ class AppServer:
 
         InputDataAppServer(type_broker=type_broker, broker_url=broker_url,
                            default_type_worker=default_type_worker, max_number_worker=max_number_worker,
-                           timeout_worker=timeout_worker, name_queue=name_queue,
+                           timeout_worker=timeout_worker, name_queue=name_queue, group_name=group_name,
                            kafka_number_of_partitions_main_topic=kafka_number_of_partitions_main_topic)
 
         self._type_broker = type_broker
@@ -79,14 +81,14 @@ class AppServer:
 
         queue_class: ServerBroker = BrokerFactory.get_broker_class_server(type_broker)
         class_admin_broker = BrokerFactory.get_broker_class_admin(type_broker)
-        self._admin_broker: AdminBroker = class_admin_broker(broker_url, name_queue)
+        self._admin_broker: AdminBroker = class_admin_broker(broker_url, name_queue, group_name)
 
         self.workers = []
         for i in range(max_number_worker):
             context = {
                 "queue_number": i
             }
-            queue = queue_class(broker_url, name_queue, context=context)
+            queue = queue_class(broker_url, name_queue, group_name, context=context)
             self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
 
         self._data_for_create_queues = {

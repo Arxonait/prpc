@@ -51,7 +51,7 @@ class PRPCMessage:
             return False
         return True
 
-    def serialize(self, serialize_raw=False):
+    def serialize(self, serialize_raw=False) -> str:
         if serialize_raw:
             return jsonpickle.dumps(self, False)
 
@@ -70,11 +70,9 @@ class PRPCMessage:
 
     @classmethod
     def deserialize(cls, serialize_message: str):
-        #logger.debug(f"Началась сериализация данных {serialize_message}")
         message = jsonpickle.loads(serialize_message)
         if not isinstance(message, PRPCMessage):
             raise PRPCMessageDeserializeError(serialize_message)
-        #logger.debug(f"Закончилась сериализация данных")
         return message
 
     @classmethod

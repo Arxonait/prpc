@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 from main.prpcmessage import PRPCMessage
 
@@ -14,6 +15,13 @@ class AbstractQueue(ABC):
     def __str__(self):
         return f"Queue --- main queue - `{self.queue}`, feedback queue - `{self.queue_feedback}`"
 
+    @abstractmethod
+    def convert_message_queue_to_prpc_message(self, message) -> PRPCMessage:
+        raise NotImplementedError
+
+    def serialize_message_for_feedback(self, message: PRPCMessage):
+        return message.serialize()
+
 
 class AbstractQueueRaw(AbstractQueue, ABC):
 
@@ -24,10 +32,14 @@ class AbstractQueueRaw(AbstractQueue, ABC):
     def __str__(self):
         return f"Queue raw --- main queue - `{self.queue}`, feedback queue - `{self.queue_feedback}`"
 
+    def serialize_message_for_feedback(self, message: PRPCMessage):
+        return message.serialize(True)
+
 
 class AbstractBroker(ABC):
-    def __init__(self, broker_url: str, queue_name: str, *args, **kwargs):
+    def __init__(self, broker_url: str, queue_name: str, group_name: str, *args, **kwargs):
         self._queue_name = queue_name
+        self._group_name = group_name
         self.broker_url = broker_url
 
         self.queue = self._init_queue(queue_name)
@@ -52,6 +64,10 @@ class AdminBroker(AbstractBroker):
 
 class ServerBroker(AbstractBroker):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._current_message: Any | None = None
+
     @abstractmethod
     async def init(self):
         raise NotImplementedError
@@ -63,6 +79,23 @@ class ServerBroker(AbstractBroker):
     @abstractmethod
     async def add_message_in_feedback_queue(self, message: PRPCMessage):
         raise NotImplementedError
+
+    def _get_queue_for_message_queue_name(self, queue_name: str) -> AbstractQueue:
+        queues = list(filter(lambda queue: queue_name == queue.queue, self.queues))
+        if len(queues) != 1:
+            raise Exception(f"Не нашлась очередь `{queue_name}` из доступных очередей {[queue.queue for queue in (self.queue, self.queue_raw)]}")
+
+        queue = queues[0]
+        return queue
+
+    def _set_current_message(self, message):
+        self._current_message = message
+
+    def _get_current_message(self):
+        assert self._current_message is not None, "`_current_message_stream mustn't be None`"
+        value = self._current_message
+        self._current_message_stream = None
+        return value
 
 
 class ClientBroker(AbstractBroker):

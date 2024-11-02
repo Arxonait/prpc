@@ -16,7 +16,6 @@ logger = logger.prpc_logger
 
 
 class AbstractRedisBroker(AbstractBroker, ABC):
-    _group_name = Settings.group_name()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -69,7 +68,6 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
         self._heartbeat_interval = Settings.redis_heartbeat()
         self._recover_interval = Settings.redis_recover_interval()
 
-        self._current_message_stream: MessageFromSteam | None = None
         self._buffer_messages: list[MessageFromSteam] = []
 
         self._queue_number = context["queue_number"]
@@ -80,15 +78,6 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
 
     async def _create_client(self):
         self._client = await redis.asyncio.from_url(self.broker_url)
-
-    def _set_current_message_stream(self, message):
-        self._current_message_stream = message
-
-    def _get_current_message_stream(self):
-        assert self._current_message_stream is not None, "`_current_message_stream mustn't be None`"
-        value = self._current_message_stream
-        self._current_message_stream = None
-        return value
 
     def _get_consumer_name(self):
         return f"{self._instance_prpc_name}_{self._queue_number}"
@@ -146,26 +135,18 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
         if message is None:
             message = await self._get_message_from_buffer()
 
-        self._set_current_message_stream(message)
-        queue = self._get_queue_for_message_stream(message)
-        prpc_message = queue.convert_message_stream_to_prpc_message(message)
+        self._set_current_message(message)
+        queue = self._get_queue_for_message_queue_name(message.stream)
+        prpc_message = queue.convert_message_queue_to_prpc_message(message)
         return prpc_message
 
     async def add_message_in_feedback_queue(self, message: PRPCMessage):
-        message_stream = self._get_current_message_stream()
-        queue = self._get_queue_for_message_stream(message_stream)
+        message_stream: MessageFromSteam = self._get_current_message()
+        queue = self._get_queue_for_message_queue_name(message_stream.stream)
 
         await self._get_client().set(queue.get_queue_feedback_id(message.message_id), queue.serialize_message_for_feedback(message),
                                      self._expire_message_feedback)
         await message_stream.remove_message_from_pending(self._get_client(), self._group_name)
-
-    def _get_queue_for_message_stream(self, message_stream: MessageFromSteam):
-        queues = list(filter(lambda queue: message_stream.stream == queue.queue, self.queues))
-        if len(queues) != 1:
-            raise Exception(f"Не нашлась очередь `{message_stream.stream}` из доступных очередей {[queue.queue for queue in (self.queue, self.queue_raw)]}")
-
-        queue: RedisQueue = queues[0]
-        return queue
 
 
 class RedisClientBroker(AbstractRedisBroker, ClientBroker):
@@ -196,11 +177,8 @@ class RedisQueue(AbstractQueue):
     def convert_prpc_message_to_message_stream(self, message: PRPCMessage):
         return {self._key_data: message.serialize()}
 
-    def convert_message_stream_to_prpc_message(self, message: MessageFromSteam):
+    def convert_message_queue_to_prpc_message(self, message: MessageFromSteam):
         return PRPCMessage.deserialize(message.data[self._key_data.encode()])
-
-    def serialize_message_for_feedback(self, message: PRPCMessage):
-        return message.serialize()
 
     def get_queue_feedback_id(self, message_id):
         return f"{self.queue_feedback}_{message_id}"
@@ -210,9 +188,5 @@ class RedisRawQueue(AbstractQueueRaw, RedisQueue):
     def __init__(self, queue_name: str):
         AbstractQueueRaw.__init__(self, queue_name)
 
-    def convert_message_stream_to_prpc_message(self, message: MessageFromSteam):
+    def convert_message_queue_to_prpc_message(self, message: MessageFromSteam):
         return PRPCMessage.deserialize_raw(message.data[self._key_data.encode()])
-
-    def serialize_message_for_feedback(self, message: PRPCMessage):
-        return message.serialize(True)
-

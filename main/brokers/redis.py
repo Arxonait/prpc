@@ -17,8 +17,8 @@ logger = logger.prpc_logger
 
 class AbstractRedisBroker(AbstractBroker, ABC):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker_url: str, queue_name: str):
+        super().__init__(broker_url, queue_name)
         self._client: redis.asyncio.Redis | None = None
 
     def _get_client(self):
@@ -37,6 +37,9 @@ class AbstractRedisBroker(AbstractBroker, ABC):
 
 
 class RedisAdminBroker(AdminBroker, AbstractRedisBroker):
+
+    def __init__(self, broker_url: str, queue_name: str, group_name: str):
+        super().__init__(broker_url, queue_name, group_name)
 
     async def _create_client(self):
         self._client = await redis.asyncio.from_url(self.broker_url)
@@ -60,10 +63,10 @@ class RedisAdminBroker(AdminBroker, AbstractRedisBroker):
                 raise e
 
 
-class RedisServerBroker(AbstractRedisBroker, ServerBroker):
+class RedisServerBroker(ServerBroker, AbstractRedisBroker):
 
-    def __init__(self, *args, context, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker_url: str, queue_name: str, group_name: str, context):
+        super().__init__(broker_url, queue_name, group_name)
         self._expire_message_feedback: datetime.timedelta = Settings.redis_expire_task_feedback()
         self._heartbeat_interval = Settings.redis_heartbeat()
         self._recover_interval = Settings.redis_recover_interval()
@@ -150,13 +153,17 @@ class RedisServerBroker(AbstractRedisBroker, ServerBroker):
 
 
 class RedisClientBroker(AbstractRedisBroker, ClientBroker):
+    _pool = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker_url: str, queue_name: str):
+        super().__init__(broker_url, queue_name)
+        if self._pool is None:
+            self._pool = redis.ConnectionPool.from_url(self.broker_url)
+
         self._create_client()
 
     def _create_client(self):
-        self._client = redis.from_url(self.broker_url)
+        self._client = redis.Redis(connection_pool=self._pool)
 
     def add_message_in_queue(self, message: PRPCMessage):
         self._client.xadd(self.queue.queue, self.queue.convert_prpc_message_to_message_stream(message))
@@ -169,6 +176,9 @@ class RedisClientBroker(AbstractRedisBroker, ClientBroker):
             return
 
         return PRPCMessage.deserialize(result)
+
+    def close(self):
+        pass
 
 
 class RedisQueue(AbstractQueue):

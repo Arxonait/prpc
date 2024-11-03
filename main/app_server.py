@@ -81,7 +81,7 @@ class AppServer:
 
         queue_class: ServerBroker = BrokerFactory.get_broker_class_server(type_broker)
         class_admin_broker = BrokerFactory.get_broker_class_admin(type_broker)
-        self._admin_broker: AdminBroker = class_admin_broker(broker_url, name_queue, group_name)
+        self._admin_broker: AdminBroker = class_admin_broker(broker_url, name_queue, group_name=group_name)
 
         self.workers = []
         for i in range(max_number_worker):

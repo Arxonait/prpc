@@ -37,9 +37,8 @@ class AbstractQueueRaw(AbstractQueue, ABC):
 
 
 class AbstractBroker(ABC):
-    def __init__(self, broker_url: str, queue_name: str, group_name: str, *args, **kwargs):
+    def __init__(self, broker_url: str, queue_name: str):
         self._queue_name = queue_name
-        self._group_name = group_name
         self.broker_url = broker_url
 
         self.queue = self._init_queue(queue_name)
@@ -57,6 +56,11 @@ class AbstractBroker(ABC):
 
 class AdminBroker(AbstractBroker):
 
+    def __init__(self, broker_url: str, queue_name: str, group_name=None):
+        super().__init__(broker_url, queue_name)
+        self._current_message: Any | None = None
+        self._group_name: str | None = group_name
+
     @abstractmethod
     async def init(self, *args, **kwargs):
         raise NotImplementedError
@@ -64,9 +68,10 @@ class AdminBroker(AbstractBroker):
 
 class ServerBroker(AbstractBroker):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, broker_url: str, queue_name: str, group_name):
+        super().__init__(broker_url, queue_name)
         self._current_message: Any | None = None
+        self._group_name = group_name
 
     @abstractmethod
     async def init(self):
@@ -105,5 +110,9 @@ class ClientBroker(AbstractBroker):
 
     @abstractmethod
     def search_message_in_feedback(self, message: PRPCMessage) -> PRPCMessage | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def close(self):
         raise NotImplementedError
 

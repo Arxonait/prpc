@@ -6,8 +6,9 @@ import pytest_asyncio
 from main.brokers.redis import RedisClientBroker, RedisAdminBroker, RedisServerBroker
 from main.prpcmessage import PRPCMessage
 from main.settings_server import Settings
-from tests.data_for_tests import CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK
-from tests.fixtures_redis import client_redis, clear_redis
+from tests.data_for_tests import CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE, \
+    FRAMEWORK_NAME_QUEUE_FEEDBACK, GROUP_NAME
+from tests.tests_redis.fixtures_redis import client_redis, clear_redis
 
 
 def parse_stream_data(stream_data):
@@ -24,14 +25,14 @@ def parse_stream_data(stream_data):
 
 @pytest_asyncio.fixture(loop_scope="class")
 async def init_admin_broker():
-    admin_broker = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+    admin_broker = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
     await admin_broker.init()
     return admin_broker
 
 
 @pytest_asyncio.fixture(loop_scope="class")
 async def redis_server_broker(init_admin_broker):
-    redis_server_broker = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, context={"queue_number": 0})
+    redis_server_broker = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, {"queue_number": 0})
     await redis_server_broker.init()
     return redis_server_broker
 
@@ -64,7 +65,7 @@ class TestRedisStream:
         assert message.message_id == message_from_stream.message_id
 
     async def test_multiply_create_groups(self, client_redis, clear_redis):
-        admin_broker = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE)
+        admin_broker = RedisAdminBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
         await admin_broker.init()
         await admin_broker.init()
 
@@ -92,14 +93,14 @@ class TestRedisStream:
         Settings._redis_recover_interval = 1
         Settings._redis_heartbeat_interval = 100
 
-        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, context={"queue_number": 0})
+        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, {"queue_number": 0})
         await redis_server_broker0.init()
         message0 = await redis_server_broker0.get_next_message_from_queue()
         del redis_server_broker0
 
         time.sleep(3)
 
-        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, context={"queue_number": 1})
+        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, {"queue_number": 1})
         await redis_server_broker1.init()
         message1 = await redis_server_broker1.get_next_message_from_queue()
 

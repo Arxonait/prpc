@@ -1,9 +1,13 @@
+import json
+import uuid
+
 import pytest
 import pytest_asyncio
 
 from main.brokers.kafka import KafkaServerBroker, KafkaClientBroker
 from main.prpcmessage import PRPCMessage
-from tests.data_for_tests import TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK, FRAMEWORK_NAME_QUEUE, GROUP_NAME
+from tests.data_for_tests import TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK, FRAMEWORK_NAME_QUEUE, GROUP_NAME, \
+    FRAMEWORK_NAME_QUEUE_RAW
 from tests.tests_kafka.fixtures_kafka import BROKER_URL, clear_kafka, consumer_kafka_main_queue, producer_kafka, consumer_kafka_feedback
 
 
@@ -81,5 +85,22 @@ class TestKafkaBroker:
 
         message_new1 = client.search_message_in_feedback(message1)
         assert message_new1 is None
+
+    async def test_server_get_prpc_message_from_topic_input_data_python(self, producer_kafka, clear_kafka, server_broker_kafka):
+        message = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
+        producer_kafka.send(FRAMEWORK_NAME_QUEUE, message.serialize().encode())
+
+        message_from_stream = await server_broker_kafka.get_next_message_from_queue()
+        assert message.message_id == message_from_stream.message_id
+        assert message.__dict__ == message_from_stream.__dict__
+
+    async def test_server_get_prpc_message_from_topic_input_data_raw(self, producer_kafka, clear_kafka, server_broker_kafka):
+        message = {"func_name": "hello_world", "message_id": str(uuid.uuid4())}
+        producer_kafka.send(FRAMEWORK_NAME_QUEUE_RAW, json.dumps(message).encode())
+
+        message_from_stream = await server_broker_kafka.get_next_message_from_queue()
+        assert message["message_id"] == message_from_stream.message_id
+        for key in message:
+            assert message[key] == getattr(message_from_stream, key)
 
 

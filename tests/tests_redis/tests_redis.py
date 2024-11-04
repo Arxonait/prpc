@@ -1,4 +1,6 @@
+import json
 import time
+import uuid
 
 import pytest
 import pytest_asyncio
@@ -7,7 +9,7 @@ from main.brokers.redis import RedisClientBroker, RedisAdminBroker, RedisServerB
 from main.prpcmessage import PRPCMessage
 from main.settings_server import Settings
 from tests.data_for_tests import CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE, \
-    FRAMEWORK_NAME_QUEUE_FEEDBACK, GROUP_NAME
+    FRAMEWORK_NAME_QUEUE_FEEDBACK, GROUP_NAME, FRAMEWORK_NAME_QUEUE_RAW
 from tests.tests_redis.fixtures_redis import client_redis, clear_redis
 
 
@@ -105,6 +107,23 @@ class TestRedisStream:
         message1 = await redis_server_broker1.get_next_message_from_queue()
 
         assert message1.message_id == message0.message_id
+
+    async def test_server_get_prpc_message_from_stream_input_data_python(self, client_redis, clear_redis, redis_server_broker):
+        message = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
+        client_redis.xadd(FRAMEWORK_NAME_QUEUE, {"message": message.serialize()})
+
+        message_from_stream = await redis_server_broker.get_next_message_from_queue()
+        assert message.message_id == message_from_stream.message_id
+        assert message.__dict__ == message_from_stream.__dict__
+
+    async def test_server_get_prpc_message_from_stream_input_data_raw(self, client_redis, clear_redis, redis_server_broker):
+        message = {"func_name": "hello_world", "message_id": str(uuid.uuid4())}
+        client_redis.xadd(FRAMEWORK_NAME_QUEUE_RAW, {"message": json.dumps(message)})
+
+        message_from_stream = await redis_server_broker.get_next_message_from_queue()
+        assert message["message_id"] == message_from_stream.message_id
+        for key in message:
+            assert message[key] == getattr(message_from_stream, key)
 
 
 

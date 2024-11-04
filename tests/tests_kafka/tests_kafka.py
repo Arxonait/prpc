@@ -63,13 +63,13 @@ class TestKafkaBroker:
                 assert False
 
     def test_get_task_from_feedback_queue(self, clear_kafka, client_broker_kafka, producer_kafka):
-        task = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
-        producer_kafka.send(FRAMEWORK_NAME_QUEUE_FEEDBACK, task.serialize().encode())
+        message = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
+        producer_kafka.send(FRAMEWORK_NAME_QUEUE_FEEDBACK, message.serialize().encode())
 
-        task_new = client_broker_kafka.search_message_in_feedback(task)
+        message_done = client_broker_kafka.search_message_in_feedback(message)
 
-        assert task_new is not None
-        assert task.message_id == task_new.message_id
+        assert isinstance(message_done, PRPCMessage)
+        assert message.message_id == message_done.message_id
 
     def test_get_several_tasks_from_feedback_queue_one_consumer(self, clear_kafka, producer_kafka):
         message1 = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})

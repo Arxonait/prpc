@@ -77,9 +77,7 @@ class TestRedisStream:
 
         assert message.message_id == message_from_stream.message_id
 
-    async def test_server_client_send_feedback_and_get_from_feedback_message(self, client_redis, clear_redis,
-                                                                             redis_server_broker, client_redis_broker,
-                                                                             add_message_in_stream):
+    async def test_add_task_in_feedback_queue(self, client_redis, clear_redis, redis_server_broker, add_message_in_stream):
         message = add_message_in_stream
         message_from_stream = await redis_server_broker.get_next_message_from_queue()
         await redis_server_broker.add_message_in_feedback_queue(message_from_stream)
@@ -88,7 +86,12 @@ class TestRedisStream:
         message_from_feedback = PRPCMessage.deserialize(message_from_feedback)
         assert message.message_id == message_from_feedback.message_id
 
+    def test_get_task_from_feedback_queue(self, client_redis, client_redis_broker, clear_redis):
+        message = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
+        client_redis.set(f"{FRAMEWORK_NAME_QUEUE_FEEDBACK}_{message.message_id}", message.serialize())
+
         message_from_feedback = client_redis_broker.search_message_in_feedback(message)
+        assert isinstance(message_from_feedback, PRPCMessage)
         assert message.message_id == message_from_feedback.message_id
 
     async def test_server_restore_message(self, init_admin_broker, add_message_in_stream, clear_redis):

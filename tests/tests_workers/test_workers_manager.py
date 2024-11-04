@@ -7,19 +7,16 @@ from main.workers.worker_manager import WorkerManager
 from tests.data_for_tests import summ
 
 
-@pytest.mark.parametrize(
-    "message, is_raise_exception", [
-        (PRPCMessage("summ", (), {}), False),
-        (PRPCMessage("hello_world", (5, 6), {}), True),
-    ]
-)
-def test_found_function_in_func_data(message, is_raise_exception):
+def test_found_function_in_func_data():
     queue_stub = None
     func_data = [FuncDataServer(summ, "thread")]
     worker_manager = WorkerManager(queue_stub, func_data, None)
-    try:
-        worker_manager._get_func_data(message)
-    except NotFoundFunc as e:
-        assert is_raise_exception
-    else:
-        assert not is_raise_exception
+    worker_manager._get_func_data(PRPCMessage("summ", (), {}))
+
+
+def test_not_found_function_in_func_data():
+    queue_stub = None
+    func_data = [FuncDataServer(summ, "thread")]
+    worker_manager = WorkerManager(queue_stub, func_data, None)
+    with pytest.raises(NotFoundFunc):
+        worker_manager._get_func_data(PRPCMessage("hello_world", (5, 6), {}))

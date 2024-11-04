@@ -13,7 +13,6 @@ class Settings:
     _redis_heartbeat_interval: int | None = None
     _redis_recover_interval: int | None = None
 
-    _group_name: str | None = None
     _instance_name: str | None = None
 
     @classmethod
@@ -42,14 +41,6 @@ class Settings:
             cls._redis_recover_interval = int(value)
 
         return cls._redis_recover_interval
-
-    @classmethod
-    def group_name(cls):
-        if cls._group_name is None:
-            default_value = "prpc_group_consumers"
-            cls._group_name = os.getenv("PRPC_GROUP_CONSUMERS", default_value)
-
-        return cls._group_name
 
     @classmethod
     def instance_name(cls):

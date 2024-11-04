@@ -32,7 +32,7 @@ async def init_admin_broker():
 
 @pytest_asyncio.fixture(loop_scope="class")
 async def redis_server_broker(init_admin_broker):
-    redis_server_broker = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, {"queue_number": 0})
+    redis_server_broker = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
     await redis_server_broker.init()
     return redis_server_broker
 
@@ -93,23 +93,19 @@ class TestRedisStream:
         Settings._redis_recover_interval = 1
         Settings._redis_heartbeat_interval = 100
 
-        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, {"queue_number": 0})
+        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
         await redis_server_broker0.init()
         message0 = await redis_server_broker0.get_next_message_from_queue()
         del redis_server_broker0
 
         time.sleep(3)
 
-        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, {"queue_number": 1})
+        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
         await redis_server_broker1.init()
         message1 = await redis_server_broker1.get_next_message_from_queue()
 
         assert message1.message_id == message0.message_id
 
-
-def test_framework_name_stream(client_redis_broker, clear_redis):
-    assert FRAMEWORK_NAME_QUEUE == client_redis_broker.queue.queue
-    assert FRAMEWORK_NAME_QUEUE_FEEDBACK == client_redis_broker.queue.queue_feedback
 
 
 

@@ -1,11 +1,13 @@
 import uuid
+from abc import ABC
 
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from kafka import KafkaAdminClient, KafkaConsumer, KafkaProducer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, ConsumerRecord
+from kafka import KafkaAdminClient, KafkaConsumer, KafkaProducer, KafkaClient, TopicPartition
 from kafka.admin import NewTopic, NewPartitions
 from kafka.errors import TopicAlreadyExistsError, KafkaTimeoutError
 
-from main.brokers import ServerBroker, ClientBroker, AdminBroker
+from main.brokers import ServerBroker, ClientBroker, AdminBroker, AbstractBroker, AbstractQueue, AbstractQueueRaw
+from main.settings_server import Settings
 from main.support_module.loggs import Logger
 from main.prpcmessage import PRPCMessage
 
@@ -13,43 +15,23 @@ logger = Logger.get_instance()
 logger = logger.prpc_logger
 
 
-class ManagerCashKafkaClientBroker:
-    task_in_process: list[uuid.UUID] = []  # todo система кеширования
-    cash_tasks: list[PRPCMessage] = []
+class AbstractKafkaBroker(AbstractBroker, ABC):
 
-    @classmethod
-    def tasks_in_process_append(cls, task_id):
-        cls.task_in_process.append(task_id)
+    def _init_queue(self, queue_name):
+        return KafkaQueue(queue_name)
 
-    @classmethod
-    def tasks_in_process_remove(cls, task_id):
-        try:
-            cls.task_in_process.remove(task_id)
-        except ValueError as e:
-            logger.warning("")  # todo
-
-    @classmethod
-    def get_task_from_cash(cls, task: PRPCMessage):
-        result_search: PRPCMessage | None = None
-        for cashed_task in cls.cash_tasks:
-            if cashed_task.message_id == task.message_id:
-                result_search = cashed_task
-                break
-
-        if result_search:
-            cls.cash_tasks.remove(result_search)
-
-        return result_search
+    def _init_queue_raw(self, queue_name):
+        return KafkaRawQueue(queue_name)
 
 
-class KafkaAdminBroker(AdminBroker):
+class KafkaAdminBroker(AdminBroker, AbstractKafkaBroker):
     async def init(self, number_of_partitions_main_topic: int, number_of_workers: int, *args, **kwargs):
-        await self.create_queues(number_of_partitions_main_topic, number_of_workers)
+        await self.create_topics(number_of_partitions_main_topic, number_of_workers)
 
-    async def create_queues(self, number_of_partitions_main_topic: int, number_of_workers: int):
-        assert number_of_partitions_main_topic is not None or number_of_workers is not None
-        if number_of_partitions_main_topic is None:
-            number_of_partitions_main_topic = number_of_workers + 2
+    async def create_topics(self, number_of_partitions_topic: int, number_of_workers: int):
+        assert number_of_partitions_topic is not None or number_of_workers is not None
+        if number_of_partitions_topic is None:
+            number_of_partitions_topic = number_of_workers + 2
 
         admin_client = KafkaAdminClient(
             bootstrap_servers=self.broker_url,
@@ -57,24 +39,25 @@ class KafkaAdminBroker(AdminBroker):
         )
 
         topic_data = {
-            self.get_queue_name(): number_of_partitions_main_topic,
-            self.get_queue_feedback_name(): 4
+            self.queue.queue: number_of_partitions_topic,
+            self.queue.queue_feedback: 4,
+            self.queue_raw.queue: number_of_partitions_topic,
+            self.queue_raw.queue_feedback: 4
         }
 
-        # Создание топика
         topic_list = [
-            NewTopic(name=self.get_queue_name(), num_partitions=topic_data[self.get_queue_name()],
+            NewTopic(name=self.queue.queue, num_partitions=topic_data[self.queue.queue],
                      replication_factor=1),
-            NewTopic(name=self.get_queue_feedback_name(), num_partitions=topic_data[self.get_queue_feedback_name()],
-                     replication_factor=1)
+            NewTopic(name=self.queue.queue_feedback, num_partitions=topic_data[self.queue.queue_feedback],
+                     replication_factor=1),
         ]
 
         try:
             admin_client.create_topics(new_topics=topic_list, validate_only=False)
-            logger.info(f"Kafka: топики `{self.get_queue_name()}`, `{self.get_queue_feedback_name()}` успешно созданы")
+            logger.info(f"Kafka: топики `{self.queue.queue}`, `{self.queue.queue_feedback}` успешно созданы")
         except TopicAlreadyExistsError:
 
-            topics_metadata = admin_client.describe_topics([self.get_queue_name(), self.get_queue_feedback_name()])
+            topics_metadata = admin_client.describe_topics([self.queue.queue, self.queue.queue_feedback])
             for topic_metadata in topics_metadata:
                 current_partitions = topic_metadata["partitions"]
                 num_existing_partitions = len(current_partitions)
@@ -89,17 +72,17 @@ class KafkaAdminBroker(AdminBroker):
                         f"Kafka: было увеличено колво партиций в топике `{topic_name}`, c {len(current_partitions)} до {topic_data[topic_name]}")
 
 
-class KafkaServerBroker(ServerBroker):
-    def __init__(self, config_broker: str | dict, queue_name: str, *args, **kwargs):
-        super().__init__(config_broker, queue_name, args, kwargs)
+class KafkaServerBroker(ServerBroker, AbstractKafkaBroker):
+    def __init__(self, config_broker: str, queue_name: str, group_name: str, **kwargs):
+        super().__init__(config_broker, queue_name, group_name)
         self.consumer: AIOKafkaConsumer | None = None
         self.producer: AIOKafkaProducer | None = None
 
     async def init(self):
         self.consumer = AIOKafkaConsumer(
-            self.get_queue_name(),
-            bootstrap_servers=self.broker_url, # todo формат url
-            group_id="prpc_group",
+            *(queue.queue for queue in self.queues),
+            bootstrap_servers=self.broker_url,  # todo формат url
+            group_id=self._group_name,
             auto_offset_reset='latest',
             enable_auto_commit=False
         )
@@ -109,51 +92,84 @@ class KafkaServerBroker(ServerBroker):
 
     async def get_next_message_from_queue(self):
         msg = await self.consumer.getone()
-        message = PRPCMessage.deserialize(msg.value)
-        return message
+        self._set_current_message(msg)
+        queue = self._get_queue_for_message_queue_name(msg.topic)
+        prpr_message = queue.convert_message_queue_to_prpc_message(msg)
+        return prpr_message
 
     async def add_message_in_feedback_queue(self, message: PRPCMessage):
         await self.consumer.commit()
-        await self.producer.send_and_wait(self.get_queue_feedback_name(), message.serialize().encode())
+        message_queue: ConsumerRecord = self._get_current_message()
+        queue = self._get_queue_for_message_queue_name(message_queue.topic)
+        await self.producer.send_and_wait(queue.queue_feedback, queue.serialize_message_for_feedback(message).encode())
 
 
-class KafkaClientBroker(ClientBroker):
-    manager_cash = ManagerCashKafkaClientBroker()
+class KafkaClientBroker(ClientBroker, AbstractKafkaBroker):
 
-    def __init__(self, config_broker: str | dict, queue_name: str, *args, **kwargs):
-        super().__init__(config_broker, queue_name, args, kwargs)
-        self.consumer = KafkaConsumer(
-            self.get_queue_feedback_name(),
+    def __init__(self, config_broker: str, queue_name: str):
+        super().__init__(config_broker, queue_name)
+        self.producer = KafkaProducer(bootstrap_servers=self.broker_url)
+        self._is_closed = False
+        self.consumer = None
+
+    def add_message_in_queue(self, message: PRPCMessage):
+        assert not self._is_closed, "this client is closed"
+        self.producer.send(self.queue.queue, message.serialize().encode())
+
+    def _init_consumer_timestamp(self, message: PRPCMessage):
+        if self.consumer is not None:
+            return
+
+        queue = self.queue.queue_feedback
+        consumer = KafkaConsumer(
+            queue,
             bootstrap_servers=self.broker_url,
             auto_offset_reset='latest',
             consumer_timeout_ms=1000
         )
 
         # Ожидаем назначения разделов
-        while not self.consumer.assignment():
-            self.consumer.poll(timeout_ms=100)  # Периодически вызываем poll для ожидания
+        while not consumer.assignment():
+            consumer.poll(timeout_ms=100)  # Периодически вызываем poll для ожидания
 
-        self.producer = KafkaProducer(bootstrap_servers=self.broker_url)
+        timestamp = int(message.date_create_message.timestamp() * 1000)
 
-    def add_message_in_queue(self, message: PRPCMessage):
-        self.producer.send(self.get_queue_name(), message.serialize().encode())
-        self.manager_cash.tasks_in_process_append(message.message_id)
+        partitions = consumer.partitions_for_topic(queue)
+        topic_partitions = [TopicPartition(queue, p) for p in partitions]
+        offsets = consumer.offsets_for_times({tp: timestamp for tp in topic_partitions})
 
-    def search_message_in_feedback(self, message: PRPCMessage) -> PRPCMessage | None:
-        cashed_task = self.manager_cash.get_task_from_cash(message)
-        if cashed_task:
-            assert message.message_id == cashed_task.message_id
-            return cashed_task
+        for partition, offset in offsets.items():
+            if offset is not None:
+                consumer.seek(partition, offset.offset)
+
+        self.consumer = consumer
+
+    def search_message_in_feedback(self, target_message: PRPCMessage) -> PRPCMessage | None:
+        assert not self._is_closed, "this client is closed"
+
+        self._init_consumer_timestamp(target_message)
 
         try:
             for message in self.consumer:
-                task = PRPCMessage.deserialize(message.value)
-                if message.message_id == task.message_id:
-                    self.manager_cash.tasks_in_process_remove(task.message_id)
-                    assert task.message_id == message.message_id
-                    return task
-                if task.message_id in self.manager_cash.task_in_process:
-                    self.manager_cash.tasks_in_process_remove(task.message_id)
-                    self.manager_cash.cash_tasks.append(task)
+                message = PRPCMessage.deserialize(message.value)
+                if target_message.message_id == message.message_id:
+                    return message
         except KafkaTimeoutError:
             return None
+
+    def close(self):
+        self._is_closed = True
+        self.producer.close()
+
+
+class KafkaQueue(AbstractQueue):
+    def convert_message_queue_to_prpc_message(self, message) -> PRPCMessage:
+        message = PRPCMessage.deserialize(message.value)
+        return message
+
+
+class KafkaRawQueue(AbstractQueueRaw, KafkaQueue):
+    def convert_message_queue_to_prpc_message(self, message) -> PRPCMessage:
+        message = PRPCMessage.deserialize_raw(message.value)
+        return message
+

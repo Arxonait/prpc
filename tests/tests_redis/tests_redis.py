@@ -124,7 +124,8 @@ class TestRedisStream:
         client_redis.xadd(FRAMEWORK_NAME_QUEUE_RAW, {"message": json.dumps(message)})
 
         message_from_stream = await redis_server_broker.get_next_message_from_queue()
-        assert message["message_id"] == message_from_stream.message_id
+        assert message["message_id"] == str(message_from_stream.message_id)
+        message.pop("message_id")
         for key in message:
             assert message[key] == getattr(message_from_stream, key)
 

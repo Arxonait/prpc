@@ -3,7 +3,7 @@ import pytest
 from kafka import KafkaAdminClient
 from kafka.admin import NewTopic
 
-from tests.data_for_tests import FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK
+from tests.data_for_tests import FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK, FRAMEWORK_NAME_QUEUE_RAW, FRAMEWORK_NAME_QUEUE_FEEDBACK_RAW
 
 BROKER_URL = "localhost:9092"
 
@@ -15,7 +15,7 @@ def clear_kafka():
     yield
 
     try:
-        admin_client.delete_topics([FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK])
+        admin_client.delete_topics([FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK, FRAMEWORK_NAME_QUEUE_RAW, FRAMEWORK_NAME_QUEUE_FEEDBACK_RAW])
     except Exception as e:
         print(e)
     admin_client.close()

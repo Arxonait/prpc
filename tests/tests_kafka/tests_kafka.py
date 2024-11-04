@@ -99,7 +99,8 @@ class TestKafkaBroker:
         producer_kafka.send(FRAMEWORK_NAME_QUEUE_RAW, json.dumps(message).encode())
 
         message_from_stream = await server_broker_kafka.get_next_message_from_queue()
-        assert message["message_id"] == message_from_stream.message_id
+        assert message["message_id"] == str(message_from_stream.message_id)
+        message.pop("message_id")
         for key in message:
             assert message[key] == getattr(message_from_stream, key)
 

@@ -67,11 +67,13 @@ class AdminBroker(AbstractBroker):
 
 
 class ServerBroker(AbstractBroker):
+    _count_instance = 0
 
     def __init__(self, broker_url: str, queue_name: str, group_name):
         super().__init__(broker_url, queue_name)
         self._current_message: Any | None = None
         self._group_name = group_name
+        ServerBroker._count_instance += 1
 
     @abstractmethod
     async def init(self):

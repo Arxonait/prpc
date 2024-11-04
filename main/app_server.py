@@ -85,10 +85,7 @@ class AppServer:
 
         self.workers = []
         for i in range(max_number_worker):
-            context = {
-                "queue_number": i
-            }
-            queue = queue_class(broker_url, name_queue, group_name, context=context)
+            queue = queue_class(broker_url, name_queue, group_name)
             self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
 
         self._data_for_create_queues = {

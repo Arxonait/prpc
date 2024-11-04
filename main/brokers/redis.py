@@ -65,7 +65,9 @@ class RedisAdminBroker(AdminBroker, AbstractRedisBroker):
 
 class RedisServerBroker(ServerBroker, AbstractRedisBroker):
 
-    def __init__(self, broker_url: str, queue_name: str, group_name: str, context):
+    def __init__(self, broker_url: str, queue_name: str, group_name: str, **kwargs):
+        self._consumer_number = ServerBroker._count_instance
+
         super().__init__(broker_url, queue_name, group_name)
         self._expire_message_feedback: datetime.timedelta = Settings.redis_expire_task_feedback()
         self._heartbeat_interval = Settings.redis_heartbeat()
@@ -73,7 +75,6 @@ class RedisServerBroker(ServerBroker, AbstractRedisBroker):
 
         self._buffer_messages: list[MessageFromSteam] = []
 
-        self._queue_number = context["queue_number"]
         self._instance_prpc_name = Settings.instance_name()
 
     async def init(self):
@@ -83,7 +84,7 @@ class RedisServerBroker(ServerBroker, AbstractRedisBroker):
         self._client = await redis.asyncio.from_url(self.broker_url)
 
     def _get_consumer_name(self):
-        return f"{self._instance_prpc_name}_{self._queue_number}"
+        return f"{self._instance_prpc_name}_{self._consumer_number}"
 
     async def _get_message_from_buffer(self):
         if len(self._buffer_messages) == 0:

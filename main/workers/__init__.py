@@ -71,7 +71,7 @@ class Worker(ABC):
 
         return False
 
-    def get_task(self):
+    def get_message(self):
         self.check_end_work()
         return self.message
 

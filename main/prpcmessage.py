@@ -14,30 +14,34 @@ logger = Logger.get_instance()
 logger = logger.prpc_logger
 
 
-class ValidaterPRPCMessageRaw(pydantic.BaseModel):
+class ValidaterPRPCMessage(pydantic.BaseModel):
     func_name: str
-    func_args: list = []
+    func_args: list | tuple = []
     func_kwargs: dict = {}
-    message_id: str
+    message_id: uuid.UUID
 
 
 class PRPCMessage:
-    def __init__(self, func_name: str, func_args: list | None, func_kwargs: dict | None, message_id=None):
+    def __init__(self, func_name: str,
+                 func_args: list | tuple | None,
+                 func_kwargs: dict | None,
+                 message_id: uuid.UUID | None = None):
+
+        func_args: list = func_args if func_args is not None else []
+        func_kwargs: dict = func_kwargs if func_kwargs is not None else {}
+        message_id: uuid.UUID = uuid.uuid4() if message_id is None else message_id
+
+        ValidaterPRPCMessage(func_name=func_name, func_args=func_args, func_kwargs=func_kwargs, message_id=message_id)
+
+        self.func_name: str = func_name
+        self.func_args = func_args
+        self.func_kwargs = func_kwargs
+        self.message_id = message_id
+        self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
 
         self.result: Any = None
         self.exception_info: str | None = None
         self.date_done_message: datetime.datetime | None = None
-
-        if not (isinstance(func_name, str) and isinstance(func_args, list | tuple | set | None) and
-                isinstance(func_kwargs, dict | None)):
-            raise Exception("func name must be str, func_args must be list, func_kwargs must be dict")
-
-        self.func_name: str = func_name
-        self.func_args: list = func_args if func_args is not None else []
-        self.func_kwargs: dict = func_kwargs if func_kwargs is not None else {}
-
-        self.message_id: uuid.UUID = uuid.uuid4() if message_id is None else message_id
-        self.date_create_message: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
 
     def message_to_done(self, exception_info: str | None = None, result: Any = None):
         assert exception_info is not None or result is not None, "to convert PRPCMessage to done, exception_info or result must be not None"
@@ -70,7 +74,11 @@ class PRPCMessage:
 
     @classmethod
     def deserialize(cls, serialize_message: str):
-        message = jsonpickle.loads(serialize_message)
+        try:
+            message = jsonpickle.loads(serialize_message)
+        except Exception as e:
+            raise JSONDeserializeError
+
         if not isinstance(message, PRPCMessage):
             raise PRPCMessageDeserializeError(serialize_message)
         return message
@@ -83,7 +91,7 @@ class PRPCMessage:
             raise JSONDeserializeError
 
         try:
-            message = ValidaterPRPCMessageRaw(**serialize_message)
+            message = ValidaterPRPCMessage(**serialize_message)
         except pydantic.ValidationError as e:
             raise PRPCMessageDeserializeError(serialize_message)
 

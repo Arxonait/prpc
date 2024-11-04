@@ -47,7 +47,7 @@ class WorkerManager:
 
                 tm = self.timeout_worker.total_seconds() if self.timeout_worker else None
                 await asyncio.wait([self.current_worker.get_future()], timeout=tm)  # study!!!
-                task_done = self.current_worker.get_task()
+                task_done = self.current_worker.get_message()
 
                 logger.info(f"Задача {task_done} выполнилась")
                 await self.queue.add_message_in_feedback_queue(task_done)

@@ -1,28 +1,11 @@
 import asyncio
-import time
 from datetime import timedelta
 
 import pytest
 
 from main.prpcmessage import PRPCMessage
 from main.workers.worker_future import ThreadWorker
-
-
-def hello_world():
-    return "hello_world"
-
-
-def summ(a, b):
-    return a + b
-
-
-def greeting(name, part_of_day):
-    return f"Hi {name}, have a nice {part_of_day}"
-
-
-def func_time(time_sec):
-    time.sleep(time_sec)
-    return True
+from tests.data_for_tests import hello_world, summ, greeting, func_time
 
 
 @pytest.mark.asyncio(loop_scope="class")

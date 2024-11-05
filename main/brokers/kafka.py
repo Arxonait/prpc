@@ -31,7 +31,7 @@ class KafkaAdminBroker(AdminBroker, AbstractKafkaBroker):
     async def create_topics(self, number_of_partitions_topic: int, number_of_workers: int):
         assert number_of_partitions_topic is not None or number_of_workers is not None
         if number_of_partitions_topic is None:
-            number_of_partitions_topic = number_of_workers + 2
+            number_of_partitions_topic = number_of_workers
 
         admin_client = KafkaAdminClient(
             bootstrap_servers=self.broker_url,
@@ -42,16 +42,19 @@ class KafkaAdminBroker(AdminBroker, AbstractKafkaBroker):
         for queue in self.queues:
             topics_name.extend([queue.queue, queue.queue_feedback])
 
+        feedback_topic_number_partitions = Settings.kafka_feedback_topic_number_partitions()
+        replication_factor = Settings.kafka_replication_factor()
         topic_data = {}
         topic_data.update({
             queue.queue: number_of_partitions_topic for queue in self.queues
         })
         topic_data.update({
-            queue.queue_feedback: 5 for queue in self.queues
+            queue.queue_feedback: feedback_topic_number_partitions for queue in self.queues
         })
 
         topic_list = [
-            NewTopic(name=topic_data_key, num_partitions=topic_data[topic_data_key], replication_factor=1)
+            NewTopic(name=topic_data_key, num_partitions=topic_data[topic_data_key],
+                     replication_factor=replication_factor)
             for topic_data_key in topic_data
         ]
 

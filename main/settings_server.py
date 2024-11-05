@@ -15,6 +15,9 @@ class Settings:
 
     _instance_name: str | None = None
 
+    _kafka_feedback_topic_number_partitions: int | None = None
+    _kafka_replication_factor: int | None = None
+
     @classmethod
     def redis_expire_task_feedback(cls):
         if cls._redis_expire_message_feedback is None:
@@ -50,4 +53,20 @@ class Settings:
             logger.info(f"PRPC instance name `{cls._instance_name}`")
 
         return cls._instance_name
+
+    @classmethod
+    def kafka_feedback_topic_number_partitions(cls):
+        if cls._kafka_feedback_topic_number_partitions is None:
+            default_value = 4
+            value = os.getenv("PRPC_KAFKA_FEEDBACK_TOPIC_NUMBER_PARTITIONS", default_value)
+            cls._kafka_feedback_topic_number_partitions = int(value)
+        return cls._kafka_feedback_topic_number_partitions
+
+    @classmethod
+    def kafka_replication_factor(cls):
+        if cls._kafka_replication_factor is None:
+            default_value = 1
+            value = os.getenv("PRPC_KAFKA_REPLICATION_FACTOR", default_value)
+            cls._kafka_replication_factor = int(value)
+        return cls._kafka_replication_factor
 

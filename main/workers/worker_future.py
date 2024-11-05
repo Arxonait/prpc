@@ -8,8 +8,8 @@ from main.workers import Worker
 
 
 class WorkerFuture(Worker, ABC):
-    def __init__(self, task, func, timeout):
-        super().__init__(task, func, timeout)
+    def __init__(self, message, func, timeout):
+        super().__init__(message, func, timeout)
         self._concurrence_obj: asyncio.Future | None = None
 
     def get_future(self):

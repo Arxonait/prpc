@@ -35,28 +35,28 @@ def add_message_in_topic(producer_kafka):
 class TestKafkaBroker:
 
     def test_add_task_in_queue(self, clear_kafka, client_broker_kafka, consumer_kafka_main_queue):
-        task = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
-        client_broker_kafka.add_message_in_queue(task)
+        message = PRPCMessage(func_name="test_func", func_args=[], func_kwargs={})
+        client_broker_kafka.add_message_in_queue(message)
 
         for message in consumer_kafka_main_queue:
-            task_new = PRPCMessage.deserialize(message.value)
-            if task_new.message_id == task.message_id:
+            message_from_kafka = PRPCMessage.deserialize(message.value)
+            if message_from_kafka.message_id == message.message_id:
                 assert True
                 break
             else:
                 assert False
 
     async def test_get_task_from_queue(self, server_broker_kafka, add_message_in_topic, clear_kafka):
-        task_new = await server_broker_kafka.get_next_message_from_queue()
-        assert add_message_in_topic.message_id == task_new.message_id
+        message_next = await server_broker_kafka.get_next_message_from_queue()
+        assert add_message_in_topic.message_id == message_next.message_id
 
     async def test_add_task_in_feedback_queue(self, server_broker_kafka, add_message_in_topic, consumer_kafka_feedback, clear_kafka):
-        task = await server_broker_kafka.get_next_message_from_queue()
-        await server_broker_kafka.add_message_in_feedback_queue(task)
+        message_next = await server_broker_kafka.get_next_message_from_queue()
+        await server_broker_kafka.add_message_in_feedback_queue(message_next)
 
         for message in consumer_kafka_feedback:
-            task_new = PRPCMessage.deserialize(message.value)
-            if task_new.message_id == task.message_id:
+            message_from_kafka = PRPCMessage.deserialize(message.value)
+            if message_from_kafka.message_id == message_next.message_id:
                 assert True
                 break
             else:

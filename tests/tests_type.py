@@ -71,9 +71,6 @@ class TestHandlerAnnotation:
             (int | float | None, "int | float | None"),
             (Union[int, float], "Union[int, float]"),
             (Optional[int], "Optional[int]"),
-            # (datetime.datetime, "datetime"),
-            # (datetime.timedelta, "timedelta"),
-            # (uuid.UUID, "UUID"),
         ]
     )
     def test_serialize(self, annotation, annotation_serialized):

@@ -8,7 +8,7 @@ import pydantic
 
 from main.support_module.exceptions import PRPCMessageDeserializeError, JSONDeserializeError
 from main.support_module.loggs import Logger
-from main.handlers_type import CheckerValueSerialize, LIB_MODULE
+from main.handlers_type import CheckerValueSerialize
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

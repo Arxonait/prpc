@@ -35,41 +35,44 @@ class KafkaAdminBroker(AdminBroker, AbstractKafkaBroker):
 
         admin_client = KafkaAdminClient(
             bootstrap_servers=self.broker_url,
-            client_id='server_client'
+            client_id=f'prpc_server_admin_client_{uuid.uuid4()}'
         )
 
-        topic_data = {
-            self.queue.queue: number_of_partitions_topic,
-            self.queue.queue_feedback: 4,
-            self.queue_raw.queue: number_of_partitions_topic,
-            self.queue_raw.queue_feedback: 4
-        }
+        topics_name = []
+        for queue in self.queues:
+            topics_name.extend([queue.queue, queue.queue_feedback])
+
+        topic_data = {}
+        topic_data.update({
+            queue.queue: number_of_partitions_topic for queue in self.queues
+        })
+        topic_data.update({
+            queue.queue_feedback: 5 for queue in self.queues
+        })
 
         topic_list = [
-            NewTopic(name=self.queue.queue, num_partitions=topic_data[self.queue.queue],
-                     replication_factor=1),
-            NewTopic(name=self.queue.queue_feedback, num_partitions=topic_data[self.queue.queue_feedback],
-                     replication_factor=1),
+            NewTopic(name=topic_data_key, num_partitions=topic_data[topic_data_key], replication_factor=1)
+            for topic_data_key in topic_data
         ]
 
         try:
             admin_client.create_topics(new_topics=topic_list, validate_only=False)
-            logger.info(f"Kafka: топики `{self.queue.queue}`, `{self.queue.queue_feedback}` успешно созданы")
+            logger.info(f"Kafka: топики {topics_name} успешно созданы")
         except TopicAlreadyExistsError:
 
-            topics_metadata = admin_client.describe_topics([self.queue.queue, self.queue.queue_feedback])
+            topics_metadata = admin_client.describe_topics(topics_name)
             for topic_metadata in topics_metadata:
                 current_partitions = topic_metadata["partitions"]
                 num_existing_partitions = len(current_partitions)
-                topic_name = topic_metadata["topic"]
+                topics_name = topic_metadata["topic"]
 
                 # Проверяем, нужно ли увеличивать количество партиций
-                if num_existing_partitions < topic_data[topic_name]:
+                if num_existing_partitions < topic_data[topics_name]:
                     # Увеличиваем количество партиций
-                    new_partitions = NewPartitions(total_count=topic_data[topic_name])
-                    admin_client.create_partitions({topic_name: new_partitions})
+                    new_partitions = NewPartitions(total_count=topic_data[topics_name])
+                    admin_client.create_partitions({topics_name: new_partitions})
                     logger.info(
-                        f"Kafka: было увеличено колво партиций в топике `{topic_name}`, c {len(current_partitions)} до {topic_data[topic_name]}")
+                        f"Kafka: было увеличено колво партиций в топике `{topics_name}`, c {len(current_partitions)} до {topic_data[topics_name]}")
 
 
 class KafkaServerBroker(ServerBroker, AbstractKafkaBroker):
@@ -81,7 +84,7 @@ class KafkaServerBroker(ServerBroker, AbstractKafkaBroker):
     async def init(self):
         self.consumer = AIOKafkaConsumer(
             *(queue.queue for queue in self.queues),
-            bootstrap_servers=self.broker_url,  # todo формат url
+            bootstrap_servers=self.broker_url,
             group_id=self._group_name,
             auto_offset_reset='latest',
             enable_auto_commit=False

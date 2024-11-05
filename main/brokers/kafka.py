@@ -126,9 +126,9 @@ class KafkaClientBroker(ClientBroker, AbstractKafkaBroker):
         if self.consumer is not None:
             return
 
-        queue = self.queue.queue_feedback
+        topic_name = self.queue.queue_feedback
         consumer = KafkaConsumer(
-            queue,
+            topic_name,
             bootstrap_servers=self.broker_url,
             auto_offset_reset='latest',
             consumer_timeout_ms=1000
@@ -140,8 +140,8 @@ class KafkaClientBroker(ClientBroker, AbstractKafkaBroker):
 
         timestamp = int(message.date_create_message.timestamp() * 1000)
 
-        partitions = consumer.partitions_for_topic(queue)
-        topic_partitions = [TopicPartition(queue, p) for p in partitions]
+        partitions = consumer.partitions_for_topic(topic_name)
+        topic_partitions = [TopicPartition(topic_name, p) for p in partitions]
         offsets = consumer.offsets_for_times({tp: timestamp for tp in topic_partitions})
 
         for partition, offset in offsets.items():

@@ -8,7 +8,7 @@ import pydantic
 
 from main.support_module.exceptions import PRPCMessageDeserializeError, JSONDeserializeError
 from main.support_module.loggs import Logger
-from main.type_module import CheckerValueSerialize, LIB_MODULE
+from main.handlers_type import CheckerValueSerialize, LIB_MODULE
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger
@@ -68,7 +68,7 @@ class PRPCMessage:
             wrong_values = wrong_values_args + wrong_values_kwargs
         if not result:
             logger.warning(f"Объекты {wrong_values} не возможно будет востановить на сервере/клиенте и будут восприниматься как dict")
-            logger.warning(f"Возможно востановить объекты модулей {LIB_MODULE}, а также примитивных типов")
+            logger.warning(f"Возможно востановить объекты примитивных типов")
 
         return jsonpickle.dumps(self)
 

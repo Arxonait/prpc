@@ -1,6 +1,6 @@
 import pytest
 
-from main.func_module import FuncDataServer
+from main.func_data import FuncDataServer
 from main.prpcmessage import PRPCMessage
 from main.support_module.exceptions import NotFoundFunc
 from main.workers.worker_manager import WorkerManager

@@ -2,14 +2,12 @@ import inspect
 from typing import Callable
 
 from main.support_module.loggs import Logger
-from main.type_module import HandlerAnnotation
+from main.handlers_type import HandlerAnnotation
 from main.workers import WORKER_TYPE_ANNOTATE
 from main.workers.workers_factory import WorkerFactory
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger
-
-# todo рефакторинг, применить принцип единной ответсвенности для сериализации
 
 
 class FuncDataServer:

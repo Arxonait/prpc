@@ -1,10 +1,8 @@
 import re
 from typing import get_args, get_origin
 
-# todo refactoring
 
-BASE_MODULE = ('builtins', )
-LIB_MODULE = ('datetime', 'uuid', 'typing')
+MODULE = ("builtins", "typing")
 
 
 class CheckerValueSerialize:
@@ -16,7 +14,7 @@ class CheckerValueSerialize:
     @classmethod
     def _check_value_for_serialize(cls, value):
         module = cls._get_module_from_value(value)
-        if module in (BASE_MODULE + LIB_MODULE):
+        if module in MODULE:
             return True
         return False
 
@@ -52,7 +50,7 @@ class HandlerAnnotation:
 
     @classmethod
     def _remove_annotation_module(cls, annotation_str: str):
-        for removed_annotation_module in (LIB_MODULE + BASE_MODULE):
+        for removed_annotation_module in MODULE:
             annotation_str = annotation_str.replace(removed_annotation_module + ".", "")
         return annotation_str
 
@@ -68,7 +66,7 @@ class HandlerAnnotation:
         invalid_types: list = []
 
         # Если аннотация простой тип
-        if isinstance(annotation, type) and annotation.__module__ in (BASE_MODULE + LIB_MODULE):
+        if isinstance(annotation, type) and annotation.__module__ in MODULE:
             return invalid_types
 
         # Если аннотация это не тип а значение

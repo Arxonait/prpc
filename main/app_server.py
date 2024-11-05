@@ -7,7 +7,7 @@ import pydantic
 
 from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
 from main.brokers import ServerBroker, AdminBroker
-from main.func_module import FuncDataServer
+from main.func_data import FuncDataServer
 from main.support_module.loggs import Logger
 from main.workers import WORKER_TYPE_ANNOTATE, WorkerType
 from main.workers.worker_manager import WorkerManager

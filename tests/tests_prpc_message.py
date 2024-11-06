@@ -3,8 +3,8 @@ import uuid
 
 import pytest
 
-from main.prpcmessage import PRPCMessage
-from main.support_module.exceptions import PRPCMessageDeserializeError, JSONDeserializeError
+from prpc.prpcmessage import PRPCMessage
+from prpc.support_module.exceptions import PRPCMessageDeserializeError, JSONDeserializeError
 
 
 class TestPrpcMessage:

@@ -6,10 +6,10 @@ from kafka import KafkaAdminClient, KafkaConsumer, KafkaProducer, KafkaClient, T
 from kafka.admin import NewTopic, NewPartitions
 from kafka.errors import TopicAlreadyExistsError, KafkaTimeoutError
 
-from main.brokers import ServerBroker, ClientBroker, AdminBroker, AbstractBroker, AbstractQueue, AbstractQueueRaw
-from main.settings_server import Settings
-from main.support_module.loggs import Logger
-from main.prpcmessage import PRPCMessage
+from prpc.brokers import ServerBroker, ClientBroker, AdminBroker, AbstractBroker, AbstractQueue, AbstractQueueRaw
+from prpc.settings_server import Settings
+from prpc.support_module.loggs import Logger
+from prpc.prpcmessage import PRPCMessage
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

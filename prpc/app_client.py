@@ -5,9 +5,9 @@ import time
 import os
 from dotenv import load_dotenv
 
-from main.brokers.brokers_factory import BrokerFactory
-from main.prpcmessage import PRPCMessage
-from main.brokers import ClientBroker
+from prpc.brokers.brokers_factory import BrokerFactory
+from prpc.prpcmessage import PRPCMessage
+from prpc.brokers import ClientBroker
 
 
 def get_function_server():
@@ -18,67 +18,66 @@ def ping():
     return AwaitableTask('ping', (), {})
 
 
-class ManagerClientBroker:
+class ClientForSendMessage:
     _instance = None
+
+    client_broker_class = None
+    url_broker = None
+    queue_name = None
 
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
-            ManagerClientBroker()
+            ClientForSendMessage()
         return cls._instance
 
     def __init__(self):
         if self._instance is not None:
             raise Exception("singleton cannot be instantiated more then once")
-        ManagerClientBroker.__instance = self
 
-        type_broker, config_broker, queue_name = self._get_init_data()
-        queue_class = BrokerFactory().get_broker_class_sync_client(type_broker)
-        self.queue: ClientBroker = queue_class(config_broker, queue_name) # todo при нескольких ожиданий задач (в потоках, в процесах) возможны ошибки
+        self._instance = self
 
-    def _get_init_data(self):
-
-        env_data = self._get_env()
-        if all(item is None for item in env_data):
-            load_dotenv()
-            env_data = self._get_env()
-
-        type_broker, config_broker, queue_name = env_data
-
-        if not (type_broker and config_broker and queue_name):
-            logging.error(f"{type_broker=}, {config_broker=}, {queue_name=}")
-            raise Exception("env PRPC_TYPE_BROKER, PRPC_URL_BROKER, PRPC_QUEUE_NAME must be installed")
-        return type_broker, config_broker, queue_name
-
-    def _get_env(self):
         type_broker = os.getenv("PRPC_TYPE_BROKER")
-        config_broker = os.getenv("PRPC_URL_BROKER")
-        # connect_async = os.getenv("PRPC_CONNECT_ASYNC", False)
-        queue_name = os.getenv("PRPC_QUEUE_NAME")
-        return type_broker, config_broker, queue_name
+        self.url_broker = os.getenv("PRPC_URL_BROKER")
+        self.queue_name = os.getenv("PRPC_QUEUE_NAME")
+        assert type_broker and self.url_broker and self.queue_name, "env PRPC_TYPE_BROKER, PRPC_URL_BROKER, PRPC_QUEUE_NAME must be installed"
+        self.client_broker_class = BrokerFactory().get_broker_class_sync_client(type_broker)
+
+        self._client_broker: ClientBroker = self.client_broker_class(self.url_broker, self.queue_name)
+
+    def send_message(self, prpc_message):
+        self._client_broker.add_message_in_queue(prpc_message)
 
 
 class AwaitableTask:
-    _client_broker: ManagerClientBroker | None = None
+    _client_for_send_message: ClientForSendMessage | None = None
 
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
-        if self._client_broker is None:
-            self.__client_broker = ManagerClientBroker()
-        self._message: PRPCMessage = PRPCMessage(func_name=func_name, func_args=args, func_kwargs=kwargs)
-        self._send_message()
+        if self._client_for_send_message is None:
+            self._client_for_send_message = ClientForSendMessage.get_instance()
 
-    def _send_message(self):
-        self.__client_broker.queue.add_message_in_queue(self._message)
+        self._message: PRPCMessage = PRPCMessage(func_name=func_name, func_args=args, func_kwargs=kwargs)
+        self._client_for_send_message.send_message(self._message)
+
+        self._client_broker: ClientBroker | None = None
+
+    def _init_client_broker(self):
+        if self._client_broker is None:
+            client_broker_class = self._client_for_send_message.client_broker_class
+            self._client_broker = client_broker_class(self._client_for_send_message.url_broker, self._client_for_send_message.queue_name)
 
     def check_done_task(self):
+        self._init_client_broker()
+
         if self._message.is_message_done():
             return True
 
-        message_done = self.__client_broker.queue.search_message_in_feedback(self._message)
+        message_done = self._client_broker.search_message_in_feedback(self._message)
         if message_done is None:
             return False
 
         self._message = message_done
+        self._client_broker.close()
         return True
 
     def _check_timeout(self, start_wait, timeout):

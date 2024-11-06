@@ -2,7 +2,7 @@ import datetime
 import os
 import uuid
 
-from main.support_module.loggs import Logger
+from prpc.support_module.loggs import Logger
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

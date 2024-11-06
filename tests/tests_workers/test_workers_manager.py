@@ -1,9 +1,9 @@
 import pytest
 
-from main.func_data import FuncDataServer
-from main.prpcmessage import PRPCMessage
-from main.support_module.exceptions import NotFoundFunc
-from main.workers.worker_manager import WorkerManager
+from prpc.func_data import FuncDataServer
+from prpc.prpcmessage import PRPCMessage
+from prpc.support_module.exceptions import NotFoundFunc
+from prpc.workers.worker_manager import WorkerManager
 from tests.data_for_tests import summ
 
 

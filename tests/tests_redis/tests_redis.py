@@ -5,9 +5,9 @@ import uuid
 import pytest
 import pytest_asyncio
 
-from main.brokers.redis import RedisClientBroker, RedisAdminBroker, RedisServerBroker
-from main.prpcmessage import PRPCMessage
-from main.settings_server import Settings
+from prpc.brokers.redis import RedisClientBroker, RedisAdminBroker, RedisServerBroker
+from prpc.prpcmessage import PRPCMessage
+from prpc.settings_server import Settings
 from tests.data_for_tests import CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE, \
     FRAMEWORK_NAME_QUEUE_FEEDBACK, GROUP_NAME, FRAMEWORK_NAME_QUEUE_RAW
 from tests.tests_redis.fixtures_redis import client_redis, clear_redis

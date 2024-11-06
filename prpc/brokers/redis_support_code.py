@@ -2,8 +2,8 @@ import asyncio
 from asyncio import Task
 from typing import Any
 
-from main.support_module.exceptions import MessageFromStreamDataValidationError
-from main.support_module.loggs import Logger
+from prpc.support_module.exceptions import MessageFromStreamDataValidationError
+from prpc.support_module.loggs import Logger
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

@@ -5,12 +5,12 @@ from typing import get_args, Type
 
 import pydantic
 
-from main.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
-from main.brokers import ServerBroker, AdminBroker
-from main.func_data import FuncDataServer
-from main.support_module.loggs import Logger
-from main.workers import WORKER_TYPE_ANNOTATE, WorkerType
-from main.workers.worker_manager import WorkerManager
+from prpc.brokers.brokers_factory import BrokerFactory, BROKER_ANNOTATION
+from prpc.brokers import ServerBroker, AdminBroker
+from prpc.func_data import FuncDataServer
+from prpc.support_module.loggs import Logger
+from prpc.workers import WORKER_TYPE_ANNOTATE, WorkerType
+from prpc.workers.worker_manager import WorkerManager
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import datetime
 from functools import partial
 
-from main.workers import Worker
+from prpc.workers import Worker
 
 
 class WorkerFuture(Worker, ABC):

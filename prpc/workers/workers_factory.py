@@ -1,5 +1,5 @@
-from main.workers import Worker, WORKER_TYPE_ANNOTATE
-from main.workers.worker_future import ThreadWorker, ProcessWorker, AsyncWorker
+from prpc.workers import Worker, WORKER_TYPE_ANNOTATE
+from prpc.workers.worker_future import ThreadWorker, ProcessWorker, AsyncWorker
 
 
 class WorkerFactory:

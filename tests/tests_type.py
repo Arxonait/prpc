@@ -3,7 +3,7 @@ import uuid
 import pytest
 from typing import Literal, Optional, Union, Callable
 
-from main.handlers_type import HandlerAnnotation, CheckerValueSerialize
+from prpc.handlers_type import HandlerAnnotation, CheckerValueSerialize
 
 
 class TestCheckerValueSerialize:

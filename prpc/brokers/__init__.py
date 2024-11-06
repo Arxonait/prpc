@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from main.prpcmessage import PRPCMessage
+from prpc.prpcmessage import PRPCMessage
 
 
 class AbstractQueue(ABC):

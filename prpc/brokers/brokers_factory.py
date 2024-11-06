@@ -1,8 +1,8 @@
 from typing import Literal
 
-from main.brokers import ServerBroker, ClientBroker, AdminBroker
-from main.brokers.kafka import KafkaServerBroker, KafkaClientBroker, KafkaAdminBroker
-from main.brokers.redis import RedisServerBroker, RedisClientBroker, RedisAdminBroker
+from prpc.brokers import ServerBroker, ClientBroker, AdminBroker
+from prpc.brokers.kafka import KafkaServerBroker, KafkaClientBroker, KafkaAdminBroker
+from prpc.brokers.redis import RedisServerBroker, RedisClientBroker, RedisAdminBroker
 
 BROKER_ANNOTATION = Literal["redis", "kafka"]
 

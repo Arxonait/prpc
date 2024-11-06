@@ -1,14 +1,14 @@
 import datetime
 import os
 
-from main.app_client import get_function_server
-from main.func_data import FuncDataClient
+from prpc.app_client import get_function_server
+from prpc.func_data import FuncDataClient
 
 
 class ServerFuncPy:
     _FILE_NAME = "server_func.py"
     _based_import_lines = [  # todo remove hardcode
-        "from main.app_client import AwaitableTask",
+        "from prpc.app_client import AwaitableTask",
         "from typing import *"
     ]
     _TIMEOUT = datetime.timedelta(seconds=30)

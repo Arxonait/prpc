@@ -6,9 +6,9 @@ import uuid
 
 import pytest
 
-from main.app_server import AppServer
-from main.brokers.redis import RedisClientBroker
-from main.prpcmessage import PRPCMessage
+from prpc.app_server import AppServer
+from prpc.brokers.redis import RedisClientBroker
+from prpc.prpcmessage import PRPCMessage
 from tests.data_for_tests import CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_RAW, \
     FRAMEWORK_NAME_QUEUE_FEEDBACK_RAW
 from tests.tests_redis.fixtures_redis import client_redis, clear_redis_class

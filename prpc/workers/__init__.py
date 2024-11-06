@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Literal
 
-from main.prpcmessage import PRPCMessage
+from prpc.prpcmessage import PRPCMessage
 
 
 class WorkerType(Enum):

@@ -1,4 +1,4 @@
-from main.brokers.redis import RedisServerBroker
+from prpc.brokers.redis import RedisServerBroker
 from tests.data_for_tests import FRAMEWORK_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK, CONFIG_BROKER_REDIS, \
     TEST_NAME_QUEUE, GROUP_NAME
 from tests.tests_redis.fixtures_redis import clear_redis, client_redis

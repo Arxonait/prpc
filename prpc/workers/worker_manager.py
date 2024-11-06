@@ -2,14 +2,14 @@ import asyncio
 from datetime import timedelta
 from typing import Callable
 
-from main.brokers import ServerBroker
-from main.support_module.exceptions import NotFoundFunc, PRPCMessageDeserializeError, \
+from prpc.brokers import ServerBroker
+from prpc.support_module.exceptions import NotFoundFunc, PRPCMessageDeserializeError, \
     MessageFromStreamDataValidationError, JSONDeserializeError
-from main.support_module.handlers import handler_errors
-from main.support_module.loggs import Logger
-from main.prpcmessage import PRPCMessage
-from main.workers import WORKER_TYPE_ANNOTATE, Worker
-from main.workers.workers_factory import WorkerFactory
+from prpc.support_module.handlers import handler_errors
+from prpc.support_module.loggs import Logger
+from prpc.prpcmessage import PRPCMessage
+from prpc.workers import WORKER_TYPE_ANNOTATE, Worker
+from prpc.workers.workers_factory import WorkerFactory
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

@@ -5,11 +5,11 @@ from typing import Any
 import redis
 from redis import ResponseError
 
-from main.brokers import AbstractBroker, AdminBroker, ServerBroker, ClientBroker, AbstractQueue, AbstractQueueRaw
-from main.brokers.redis_support_code import StreamsData, MessageFromSteam
-from main.prpcmessage import PRPCMessage
-from main.settings_server import Settings
-from main.support_module.loggs import Logger
+from prpc.brokers import AbstractBroker, AdminBroker, ServerBroker, ClientBroker, AbstractQueue, AbstractQueueRaw
+from prpc.brokers.redis_support_code import StreamsData, MessageFromSteam
+from prpc.prpcmessage import PRPCMessage
+from prpc.settings_server import Settings
+from prpc.support_module.loggs import Logger
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

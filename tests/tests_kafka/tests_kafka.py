@@ -4,8 +4,8 @@ import uuid
 import pytest
 import pytest_asyncio
 
-from main.brokers.kafka import KafkaServerBroker, KafkaClientBroker
-from main.prpcmessage import PRPCMessage
+from prpc.brokers.kafka import KafkaServerBroker, KafkaClientBroker
+from prpc.prpcmessage import PRPCMessage
 from tests.data_for_tests import TEST_NAME_QUEUE, FRAMEWORK_NAME_QUEUE_FEEDBACK, FRAMEWORK_NAME_QUEUE, GROUP_NAME, \
     FRAMEWORK_NAME_QUEUE_RAW
 from tests.tests_kafka.fixtures_kafka import BROKER_URL, clear_kafka, consumer_kafka_main_queue, producer_kafka, consumer_kafka_feedback

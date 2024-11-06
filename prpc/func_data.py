@@ -1,10 +1,10 @@
 import inspect
 from typing import Callable
 
-from main.support_module.loggs import Logger
-from main.handlers_type import HandlerAnnotation
-from main.workers import WORKER_TYPE_ANNOTATE
-from main.workers.workers_factory import WorkerFactory
+from prpc.support_module.loggs import Logger
+from prpc.handlers_type import HandlerAnnotation
+from prpc.workers import WORKER_TYPE_ANNOTATE
+from prpc.workers.workers_factory import WorkerFactory
 
 logger = Logger.get_instance()
 logger = logger.prpc_logger

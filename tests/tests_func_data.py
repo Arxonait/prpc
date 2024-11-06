@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from main.func_data import FuncDataServer
+from prpc.func_data import FuncDataServer
 
 
 def func_for_test_hello_world():

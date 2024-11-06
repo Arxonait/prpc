@@ -3,8 +3,8 @@ from datetime import timedelta
 
 import pytest
 
-from main.prpcmessage import PRPCMessage
-from main.workers.worker_future import ThreadWorker
+from prpc.prpcmessage import PRPCMessage
+from prpc.workers.worker_future import ThreadWorker
 from tests.data_for_tests import hello_world, summ, greeting, func_time
 
 

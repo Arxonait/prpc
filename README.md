@@ -38,21 +38,23 @@ pip install -r requirements.txt
 Сервер реализован как асинхронный framework
 
 ```python
-from main.app_server import AppServer
+from prpc.app_server import AppServer
 import time
 import datetime
 
-
 app = AppServer("redis", "redis://localhost:6379/0", "thread", 4, datetime.timedelta(seconds=100))
+
 
 @app.decorator_reg_func("process")
 def summ(a: int | float, b, z=0.5):
     return a + b + z
 
+
 @app.decorator_reg_func()
 def hello_world():
     time.sleep(0.5)
     return "hello_world"
+
 
 if __name__ == "__main__":  # Обязательно использовать точку входа (особенно если используется worker типа `process`)
     app.start()

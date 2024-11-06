@@ -57,6 +57,20 @@ class AppServer:
                  name_queue="task_prpc",
                  *,
                  group_name="prpc_group_consumers"):
+        """
+        Приложение prpc\n
+        Зарегистрированы функции:\n
+        get_function_server() - создание файла 'server_func.py' для клиента\n
+        ping() - проверка работы сервера\n
+
+        :param type_broker: 'redis' or 'kafka'
+        :param broker_url: 'redis://localhost:6379/0' or 'localhost:9092'
+        :param default_type_worker: будет примениться ко всем зарегистрированным функциям, которые не имеют определенного worker. Типы workers: thread, process, async. Default value: 'thread'
+        :param max_number_worker: кол-во workers которые могут одновременно работать и принимать новые сообщение. Относится ко типам workers. Default value: 4
+        :param timeout_worker: максимальное время работы worker над одним сообщением. Type: datetime.timedelta | None. При None нет ограничений. Внимание в случае thread и process workers прервать выполнение самих потоков и процессов не получится из-за использования concurent.featutre (нет возмодности убить процесс и поток). Сам worker отправит результат (ошибка по timeout) и будет ожидать новое сообщение. Но эти потоки и процессы будут потреблять ресурсы pc. Обрабатывайте случаи, когда возможны бесконечные задачи.
+        :param name_queue: Имя очереди. Default value: `task_prpc`
+        :param group_name: Имя группы consumers. Default value: `prpc_group_consumers`
+        """
 
         if self.__instance is not None:
             raise Exception("singleton cannot be instantiated more then once ")
@@ -92,6 +106,10 @@ class AppServer:
         return worker_type if worker_type else self.default_type_worker
 
     def decorator_reg_func(self, worker_type: WORKER_TYPE_ANNOTATE | None = None):
+        """
+        Регистрирует функцию в приложении
+        :param worker_type: Может быть установлен None, тогда будет использован default_type_worker приложения. Типы workers: thread, process, async.
+        """
         def decorator(func):
 
             @wraps(func)

@@ -7,7 +7,7 @@ from prpc.func_data import FuncDataClient
 
 class ServerFuncPy:
     _FILE_NAME = "server_func.py"
-    _based_import_lines = [  # todo remove hardcode
+    _based_import_lines = [
         "from prpc.app_client import AwaitableTask",
         "from typing import *"
     ]

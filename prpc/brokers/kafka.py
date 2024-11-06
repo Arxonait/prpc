@@ -167,6 +167,8 @@ class KafkaClientBroker(ClientBroker, AbstractKafkaBroker):
     def close(self):
         self._is_closed = True
         self.producer.close()
+        if self.consumer is not None:
+            self.consumer.close()
 
 
 class KafkaQueue(AbstractQueue):

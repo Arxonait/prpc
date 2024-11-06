@@ -35,7 +35,7 @@ class ClientForSendMessage:
         if self._instance is not None:
             raise Exception("singleton cannot be instantiated more then once")
 
-        self._instance = self
+        ClientForSendMessage._instance = self
 
         type_broker = os.getenv("PRPC_TYPE_BROKER")
         self.url_broker = os.getenv("PRPC_URL_BROKER")
@@ -54,31 +54,35 @@ class AwaitableTask:
 
     def __init__(self, func_name: str, args: tuple, kwargs: dict):
         if self._client_for_send_message is None:
-            self._client_for_send_message = ClientForSendMessage.get_instance()
+            AwaitableTask._client_for_send_message = ClientForSendMessage.get_instance()
 
         self._message: PRPCMessage = PRPCMessage(func_name=func_name, func_args=args, func_kwargs=kwargs)
         self._client_for_send_message.send_message(self._message)
 
-        self._client_broker: ClientBroker | None = None
+        self._client_for_get_result: ClientBroker | None = None
 
-    def _init_client_broker(self):
-        if self._client_broker is None:
+    def _init_client_for_get_result(self):
+        if self._client_for_get_result is None:
             client_broker_class = self._client_for_send_message.client_broker_class
-            self._client_broker = client_broker_class(self._client_for_send_message.url_broker, self._client_for_send_message.queue_name)
+            self._client_for_get_result = client_broker_class(self._client_for_send_message.url_broker,
+                                                              self._client_for_send_message.queue_name)
 
-    def check_done_task(self):
-        self._init_client_broker()
+    def _update_status_task(self):
+        assert not self.is_done_task(), "task is done and _client_for_get_result is closed"
+        self._init_client_for_get_result()
 
+        message_done = self._client_for_get_result.search_message_in_feedback(self._message)
+        if message_done is not None:
+            self._message = message_done
+            self._client_for_get_result.close()
+
+    def is_done_task(self, *, update_status: bool = False):
         if self._message.is_message_done():
             return True
-
-        message_done = self._client_broker.search_message_in_feedback(self._message)
-        if message_done is None:
-            return False
-
-        self._message = message_done
-        self._client_broker.close()
-        return True
+        if update_status:
+            self._update_status_task()
+            return self._message.is_message_done()
+        return False
 
     def _check_timeout(self, start_wait, timeout):
         if timeout is not None and datetime.datetime.now() - start_wait > timeout:
@@ -87,16 +91,18 @@ class AwaitableTask:
 
     def sync_wait_result_task(self, timeout: datetime.timedelta | None = None):
         start_wait = datetime.datetime.now()
-        while True:
-            if self.check_done_task():
+        while not self.is_done_task():
+            self._update_status_task()
+            if self.is_done_task():
                 return self.get_result()
             self._check_timeout(start_wait, timeout)
             time.sleep(1)
 
     async def async_wait_result_task(self, timeout: datetime.timedelta | None = None):
         start_wait = datetime.datetime.now()
-        while True:
-            if self.check_done_task():
+        while not self.is_done_task():
+            self._update_status_task()
+            if self.is_done_task():
                 return self.get_result()
             self._check_timeout(start_wait, timeout)
             await asyncio.sleep(1)

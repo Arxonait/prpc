@@ -58,30 +58,50 @@ def hello_world():
 
 if __name__ == "__main__":  # Обязательно использовать точку входа (особенно если используется worker типа `process`)
     app.start()
-
 ```
+
+Все зарегистрированные функции должны принимать и возвращать данные с примитивными типами (int, float, str, bool, None, byte, list, dict и тд)
+
+Типы данных библиотек (например datetime, uuid) будет восприниматься как dict
+
+## Основные параметры AppServer
+1. type_broker: str - 'redis' or 'kafka'
+2. broker_url: str - 'redis://localhost:6379/0' or 'localhost:9092'
+3. default_type_worker: str - Типы workers: thread, process, async. будет примениться ко всем зарегистрированным функциям, которые не имеют определенного worker
+4. max_number_worker: int - кол-во workers которые могут одновременно работать и принимать новые сообщение.
+5. timeout_worker: datetime | None - максимальное время работы worker над одним сообщением
+
+## ENV server
+Для точной настройки сервера можно установить env:
+1. PRPC_INSTANCE_NAME - str - имя для экземпляра сервера. Используется redis. Если не установленно, то будет сгенерировано при каждом запуске сервера новое имя - `str(uuid.uuid4())`
+2. PRPC_REDIS_EXPIRE_MESSAGE_FEEDBACK_SEC - int - кол-во секунд для хранение результата в redis. По умолчанию `datetime.timedelta(hours=6).total_seconds()`
+3. PRPC_REDIS_HEARTBEAT_INTERVAL_SEC - int - кол-во секунд для подтверждения что сообщение еще обрабатывается worker. По умолчанию 15
+4. PRPC_REDIS_RECOVER_INTERVAL_SEC - int - кол-во секунд для перехвата контроля над сообщением (восстановление незавершенных сообщений). По умолчанию 45. Должно быть всегда больше чем `PRPC_REDIS_HEARTBEAT_INTERVAL_SEC`
+5. PRPC_KAFKA_FEEDBACK_TOPIC_NUMBER_PARTITIONS - int - кол-во partitions в топиках-ответов. По умолчанию 4
+6. PRPC_KAFKA_QUEUE_TOPIC_NUMBER_PARTITIONS - int - кол-во partitions в основных топиках. По умолчанию None - если оно не установленно, то кол-во partitions будет определено по максимальному кол-во worker
+7. PRPC_KAFKA_REPLICATION_FACTOR - int - replication factor for kafka
 
 # Клиент
 Чтобы обеспечить работу клиента нужно: 
 1. Установить env
 
-Для Redis
-```
-PRPC_TYPE_BROKER=redis
-PRPC_URL_BROKER=redis://localhost:6379/0
-PRPC_QUEUE_NAME=task_prpc
-```
-Для Kafka
-```
-PRPC_TYPE_BROKER=kafka
-PRPC_URL_BROKER=localhost:9092
-PRPC_QUEUE_NAME=task_prpc
-```
+    Для Redis
+    ```
+    PRPC_TYPE_BROKER=redis
+    PRPC_URL_BROKER=redis://localhost:6379/0
+    PRPC_QUEUE_NAME=task_prpc
+    ```
+    Для Kafka
+    ```
+    PRPC_TYPE_BROKER=kafka
+    PRPC_URL_BROKER=localhost:9092
+    PRPC_QUEUE_NAME=task_prpc
+    ```
 
 2. Запустить код для создания файла `server_func.py`, из которого можно импортировать функции сервера
-```
-python -m prpc.create_server_func
-```
+    ```
+    python -m prpc.create_server_func
+    ```
 ## Пример клиента
 ```python
 
@@ -95,57 +115,58 @@ python -m prpc.create_server_func
 Пример: 
 1. Сформировать сообщение (структуру данных)
 
-```python
-import uuid
-
-message = {
-    "func_name": "hello_world",
-    "func_args": [],
-    "func_kwargs": {},
-    "message_id": str(uuid.uuid4())
-}
-```
+    ```python
+    import uuid
+    
+    message = {
+        "func_name": "hello_world",
+        "func_args": [],
+        "func_kwargs": {},
+        "message_id": str(uuid.uuid4())
+    }
+    ```
 2. Отправить сообщение в очередь
-
-Сообщение должно быть в формате json
-
-В случае kafka: `producer.send(f"prpc_raw_{queue_name}", json.dumps(message))`
-
-В случае redis: `redis.xadd(f"prpc_raw_{queue_name}", {"message": json.dumps(message)})`
-```python
-import json
-import redis
-
-queue_name = "task_prpc"
-
-client = redis.from_url("redis://localhost:6379/0")
-client.xadd(f"prpc_raw_{queue_name}", {"message": json.dumps(message)})
-```
+    
+    Сообщение должно быть в формате json
+    
+    В случае kafka: `producer.send(f"prpc_raw_{queue_name}", json.dumps(message))`
+    
+    В случае redis: `redis.xadd(f"prpc_raw_{queue_name}", {"message": json.dumps(message)})`
+    ```python
+    import json
+    import redis
+    
+    queue_name = "task_prpc"
+    
+    client = redis.from_url("redis://localhost:6379/0")
+    client.xadd(f"prpc_raw_{queue_name}", {"message": json.dumps(message)})
+    ```
 3. Получение результатов
-Результат будет в формате json
 
-Пример результата
-```json
-{
-  "func_name": "hello_world",
-  "func_args": [],
-  "func_kwargs": {},
-  "message_id": "uuid4",
-  "result": "hellp_world",
-  "exception_info": null,
-  "date_create_message": "2024-11-06T12:00:00.0+03:00",
-  "date_done_message": "2024-11-06T12:00:05.0+03:00"
-}
-```
-Возможные значения:
-- func_name - string
-- func_args - list
-- func_kwargs - dict
-- message_id - string format uuid
-- result - Any or null
-- exception_info - string or null
-- date_create_message - string format isoformat
-- date_done_message - string format isoformat
+    Результат будет в формате json
+
+    Пример результата
+    ```json
+    {
+      "func_name": "hello_world",
+      "func_args": [],
+      "func_kwargs": {},
+      "message_id": "uuid4",
+      "result": "hellp_world",
+      "exception_info": null,
+      "date_create_message": "2024-11-06T12:00:00.0+03:00",
+      "date_done_message": "2024-11-06T12:00:05.0+03:00"
+    }
+    ```
+    Возможные значения:
+    - func_name - string
+      - func_args - list
+      - func_kwargs - dict
+      - message_id - string format uuid
+      - result - Any or null
+      - exception_info - string or null
+      - date_create_message - string format isoformat
+      - date_done_message - string format isoformat
 
 ## kafka
 Лучше всего использовать offset по timestamp (date send message) - оптимизация

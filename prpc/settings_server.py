@@ -17,6 +17,7 @@ class Settings:
 
     _kafka_feedback_topic_number_partitions: int | None = None
     _kafka_replication_factor: int | None = None
+    _kafka_queue_topic_number_partitions: int| None = None
 
     @classmethod
     def redis_expire_task_feedback(cls):
@@ -60,6 +61,14 @@ class Settings:
             default_value = 4
             value = os.getenv("PRPC_KAFKA_FEEDBACK_TOPIC_NUMBER_PARTITIONS", default_value)
             cls._kafka_feedback_topic_number_partitions = int(value)
+        return cls._kafka_feedback_topic_number_partitions
+
+    @classmethod
+    def kafka_queue_topic_number_partitions(cls):
+        if cls._kafka_queue_topic_number_partitions is None:
+            default_value = None
+            value = os.getenv("PRPC_KAFKA_QUEUE_TOPIC_NUMBER_PARTITIONS", default_value)
+            cls._kafka_feedback_topic_number_partitions = int(value) if value is not None else value
         return cls._kafka_feedback_topic_number_partitions
 
     @classmethod

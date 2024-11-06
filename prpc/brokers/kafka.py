@@ -25,7 +25,8 @@ class AbstractKafkaBroker(AbstractBroker, ABC):
 
 
 class KafkaAdminBroker(AdminBroker, AbstractKafkaBroker):
-    async def init(self, number_of_partitions_main_topic: int, number_of_workers: int, *args, **kwargs):
+    async def init(self, number_of_workers: int, *args, **kwargs):
+        number_of_partitions_main_topic = Settings.kafka_queue_topic_number_partitions()
         await self.create_topics(number_of_partitions_main_topic, number_of_workers)
 
     async def create_topics(self, number_of_partitions_topic: int, number_of_workers: int):

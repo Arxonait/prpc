@@ -36,7 +36,6 @@ class InputDataAppServer(pydantic.BaseModel):
     timeout_worker: datetime.timedelta | None
     name_queue: str
     group_name: str
-    kafka_number_of_partitions_main_topic: int | None
 
 
 class AppServer:
@@ -55,11 +54,9 @@ class AppServer:
                  default_type_worker: WORKER_TYPE_ANNOTATE = "thread",
                  max_number_worker: int = 4,
                  timeout_worker: datetime.timedelta | None = None,
-
                  name_queue="task_prpc",
-                 group_name="prpc_group_consumers",
-                 *args,
-                 kafka_number_of_partitions_main_topic: int | None = None):
+                 *,
+                 group_name="prpc_group_consumers"):
 
         if self.__instance is not None:
             raise Exception("singleton cannot be instantiated more then once ")
@@ -68,8 +65,7 @@ class AppServer:
 
         InputDataAppServer(type_broker=type_broker, broker_url=broker_url,
                            default_type_worker=default_type_worker, max_number_worker=max_number_worker,
-                           timeout_worker=timeout_worker, name_queue=name_queue, group_name=group_name,
-                           kafka_number_of_partitions_main_topic=kafka_number_of_partitions_main_topic)
+                           timeout_worker=timeout_worker, name_queue=name_queue, group_name=group_name)
 
         self._type_broker = type_broker
 
@@ -89,7 +85,6 @@ class AppServer:
             self.workers.append(WorkerManager(queue, self._func_data, timeout_worker))
 
         self._data_for_create_queues = {
-            "number_of_partitions_main_topic": kafka_number_of_partitions_main_topic,
             "number_of_workers": len(self.workers)
         }
 

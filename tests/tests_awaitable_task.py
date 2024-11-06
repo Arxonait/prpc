@@ -6,6 +6,7 @@ import pytest
 
 from prpc.app_client import AwaitableTask
 from prpc.prpcmessage import PRPCMessage
+from prpc.support_module.exceptions import ClientTimeOutError
 
 
 @pytest.fixture()
@@ -73,7 +74,7 @@ class TestAwaitableTask:
 
         with patch("prpc.app_client.ClientForSendMessage.get_instance", return_value=mock_client_for_send_message):
             task = AwaitableTask(message.func_name, message.func_args, message.func_kwargs)
-            with pytest.raises(Exception) as e:
+            with pytest.raises(ClientTimeOutError) as e:
                 task.sync_wait_result_task(datetime.timedelta(seconds=1))
 
     def test_get_result_with_exception(self, get_mocks):

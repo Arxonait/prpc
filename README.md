@@ -38,7 +38,7 @@ pip install -r requirements.txt
 Сервер реализован как асинхронный framework
 
 ```python
-from prpc.app_server import AppServer
+from prpc import AppServer
 import time
 import datetime
 
@@ -103,7 +103,20 @@ if __name__ == "__main__":  # Обязательно использовать т
     python -m prpc.create_server_func
     ```
 ## Пример клиента
+
 ```python
+import datetime
+from prpc.server_func import ping, summ, hello_world
+from prpc.support_module.exceptions import ClientTimeOutError
+
+
+awaitable_task = hello_world()
+try:
+    result = awaitable_task.sync_wait_result_task(datetime.timedelta(seconds=20))
+except ClientTimeOutError as e:
+    ...
+except Exception as e:
+    ...
 
 ```
 

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from prpc.brokers.brokers_factory import BrokerFactory
 from prpc.prpcmessage import PRPCMessage
 from prpc.brokers import ClientBroker
+from prpc.support_module.exceptions import ClientTimeOutError
 
 
 def get_function_server():
@@ -87,7 +88,7 @@ class AwaitableTask:
     def _check_timeout(self, start_wait, timeout):
         if timeout is not None and datetime.datetime.now() - start_wait > timeout:
             assert not self._message.is_message_done(), "при wait timeout должна быть возможность повторного ожидания"
-            raise Exception(f"the task was completed by wait timeout {timeout.total_seconds()} secs.")
+            raise ClientTimeOutError(timeout)
 
     def sync_wait_result_task(self, timeout: datetime.timedelta | None = None):
         start_wait = datetime.datetime.now()

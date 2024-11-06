@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+
 class NotFoundFunc(Exception):
     def __init__(self, func_name: str):
         self.func_name = func_name
@@ -22,3 +25,12 @@ class MessageFromStreamDataValidationError(Exception):
 class JSONDeserializeError(Exception):
     def __str__(self):
         return f"json error"
+
+
+class ClientTimeOutError(Exception):
+
+    def __init__(self, timeout: timedelta):
+        self.timeout = timeout
+
+    def __str__(self):
+        return f"the task was completed by wait timeout {self.timeout.total_seconds()} secs."

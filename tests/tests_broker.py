@@ -12,9 +12,9 @@ class TestAbstractBroker:
 
     def test_server_broker_unic_queue_number(self, clear_redis):
 
-        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, None)
-        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, None)
-        redis_server_broker2 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME, None)
+        redis_server_broker0 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
+        redis_server_broker1 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
+        redis_server_broker2 = RedisServerBroker(CONFIG_BROKER_REDIS, TEST_NAME_QUEUE, GROUP_NAME)
 
         assert redis_server_broker0._consumer_number == 0
         assert redis_server_broker1._consumer_number == 1
